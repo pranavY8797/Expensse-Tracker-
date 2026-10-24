@@ -2,7 +2,14 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { getDbPool, initDatabase } from './db.js';
-import { parseExpenseNLP, parseReceipt, generateAuraInsights, askAuraAdvisor } from './aiEngine.js';
+import {
+  parseExpenseNLP,
+  parseReceipt,
+  generateAuraInsights,
+  askAuraAdvisor,
+  batchCategorizeCSV,
+  simulateWhatIfScenario
+} from './aiEngine.js';
 
 dotenv.config();
 
@@ -333,6 +340,148 @@ app.post('/api/ai/chat', async (req, res) => {
     const { message } = req.body;
     const response = await askAuraAdvisor(message, db);
     res.json(response);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 🔮 "WHAT IF?" FINANCIAL SIMULATOR
+// -------------------------------------------------------------
+app.post('/api/ai/simulate', async (req, res) => {
+  try {
+    const simulationResult = await simulateWhatIfScenario(req.body, db);
+    res.json(simulationResult);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 📁 BANK STATEMENT CSV BULK IMPORTER
+// -------------------------------------------------------------
+app.post('/api/import/parse-csv', (req, res) => {
+  try {
+    const { csvContent } = req.body;
+    if (!csvContent) return res.status(400).json({ error: 'CSV file text is required' });
+    const parsed = batchCategorizeCSV(csvContent);
+    res.json(parsed);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/import/batch-commit', async (req, res) => {
+  try {
+    const { transactions = [] } = req.body;
+    if (!Array.isArray(transactions) || transactions.length === 0) {
+      return res.status(400).json({ error: 'No transactions selected for import' });
+    }
+
+    const rows = transactions.map(t => [
+      t.type || 'expense',
+      parseFloat(t.amount) || 0,
+      'USD',
+      t.category || 'Groceries & Dining',
+      t.merchant || 'Bank Import',
+      t.date || new Date().toISOString().split('T')[0],
+      t.payment_method || 'Card',
+      t.raw_desc || 'Imported via CSV statement',
+      JSON.stringify(['csv-import', ...(t.is_tax_deductible ? ['tax'] : [])]),
+      t.is_tax_deductible ? 1 : 0
+    ]);
+
+    await db.query(
+      `INSERT INTO transactions (type, amount, currency, category, merchant, date, payment_method, notes, tags, is_tax_deductible)
+       VALUES ?`,
+      [rows]
+    );
+
+    await db.query(
+      `INSERT INTO audit_logs (action, details) VALUES (?, ?)`,
+      ['CSV_BULK_IMPORTED', `Batch imported ${rows.length} transactions from bank CSV into MySQL`]
+    );
+
+    res.json({ success: true, count: rows.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 📅 CASHFLOW CALENDAR & SUBSCRIPTION RENEWAL VIEW
+// -------------------------------------------------------------
+app.get('/api/calendar/month', async (req, res) => {
+  try {
+    const year = parseInt(req.query.year || new Date().getFullYear(), 10);
+    const month = parseInt(req.query.month || (new Date().getMonth() + 1), 10);
+    const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
+
+    // Get transactions for that month
+    const [txRows] = await db.query(
+      `SELECT id, type, amount, category, merchant, date, notes
+       FROM transactions
+       WHERE date LIKE ?
+       ORDER BY date ASC, id ASC`,
+      [`${monthPrefix}%`]
+    );
+
+    // Get recurring subscriptions
+    const [subRows] = await db.query(`SELECT * FROM recurring_subscriptions WHERE status = 'active'`);
+
+    // Group transactions by day
+    const daysMap = {};
+    const daysInMonth = new Date(year, month, 0).getDate();
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      daysMap[dateStr] = {
+        date: dateStr,
+        day,
+        totalIncome: 0,
+        totalExpense: 0,
+        transactions: [],
+        renewals: []
+      };
+    }
+
+    // Populate transactions
+    for (const tx of txRows) {
+      const dStr = tx.date instanceof Date ? tx.date.toISOString().split('T')[0] : String(tx.date);
+      if (daysMap[dStr]) {
+        const amt = parseFloat(tx.amount);
+        if (tx.type === 'expense') {
+          daysMap[dStr].totalExpense += amt;
+        } else {
+          daysMap[dStr].totalIncome += amt;
+        }
+        daysMap[dStr].transactions.push({
+          ...tx,
+          amount: amt
+        });
+      }
+    }
+
+    // Check which subscriptions renew in this month
+    for (const sub of subRows) {
+      const subDate = sub.next_billing_date instanceof Date ? sub.next_billing_date.toISOString().split('T')[0] : String(sub.next_billing_date);
+      // If billing cycle is monthly, match on day of month
+      const subDay = parseInt(subDate.split('-')[2] || '1', 10);
+      const targetDateStr = `${year}-${String(month).padStart(2, '0')}-${String(Math.min(subDay, daysInMonth)).padStart(2, '0')}`;
+      if (daysMap[targetDateStr]) {
+        daysMap[targetDateStr].renewals.push({
+          ...sub,
+          amount: parseFloat(sub.amount)
+        });
+      }
+    }
+
+    res.json({
+      year,
+      month,
+      daysInMonth,
+      calendarDays: Object.values(daysMap)
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

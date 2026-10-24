@@ -1,28 +1,45 @@
 import React from 'react';
-import { Shield, Lock, Eye, EyeOff, Database, Sparkles, Plus, KeyRound } from 'lucide-react';
+import {
+  Shield,
+  Eye,
+  EyeOff,
+  Database,
+  Sparkles,
+  Plus,
+  KeyRound,
+  FileSpreadsheet,
+  HelpCircle,
+  Calendar,
+  LayoutDashboard
+} from 'lucide-react';
 
 export function Navbar({
   discreetMode,
   setDiscreetMode,
+  activeView,
+  setActiveView,
   onOpenQuickAdd,
   onOpenSqlExplorer,
   onOpenAura,
+  onOpenCsvImporter,
+  onOpenWhatIf,
   onOpenPinModal,
-  isLocked,
-  healthScore = 92
+  isLocked
 }) {
   return (
     <header style={{
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      padding: '16px 24px',
+      padding: '14px 24px',
       borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-      background: 'rgba(7, 10, 20, 0.85)',
+      background: 'rgba(7, 10, 20, 0.9)',
       backdropFilter: 'blur(20px)',
       position: 'sticky',
       top: 0,
-      zIndex: 100
+      zIndex: 100,
+      flexWrap: 'wrap',
+      gap: '12px'
     }}>
       {/* Brand & Safety Status */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -54,47 +71,117 @@ export function Navbar({
         </div>
       </div>
 
+      {/* Middle: Dashboard vs Calendar View Switcher */}
+      <div style={{
+        display: 'flex',
+        background: 'rgba(255, 255, 255, 0.04)',
+        padding: '3px',
+        borderRadius: '10px',
+        border: '1px solid rgba(255, 255, 255, 0.08)'
+      }}>
+        <button
+          onClick={() => setActiveView('dashboard')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 14px',
+            borderRadius: '8px',
+            border: 'none',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            background: activeView === 'dashboard' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+            color: activeView === 'dashboard' ? '#34d399' : '#94a3b8'
+          }}
+        >
+          <LayoutDashboard size={14} /> Dashboard
+        </button>
+
+        <button
+          onClick={() => setActiveView('calendar')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 14px',
+            borderRadius: '8px',
+            border: 'none',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            background: activeView === 'calendar' ? 'rgba(6, 182, 212, 0.2)' : 'transparent',
+            color: activeView === 'calendar' ? '#38bdf8' : '#94a3b8'
+          }}
+        >
+          <Calendar size={14} /> Cashflow Calendar
+        </button>
+      </div>
+
       {/* Action Buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+        {/* CSV Importer */}
+        <button
+          className="btn btn-secondary"
+          onClick={onOpenCsvImporter}
+          title="Import Bank Statement CSV"
+          style={{ padding: '7px 12px', fontSize: '0.8rem' }}
+        >
+          <FileSpreadsheet size={15} color="#10b981" />
+          <span>Import CSV</span>
+        </button>
+
+        {/* What-If Simulator */}
+        <button
+          className="btn btn-secondary"
+          onClick={onOpenWhatIf}
+          title="Test prospective purchases with What-If Simulator"
+          style={{ padding: '7px 12px', fontSize: '0.8rem' }}
+        >
+          <Sparkles size={15} color="#c084fc" />
+          <span>What If?</span>
+        </button>
+
         {/* Discreet Mode Toggle */}
         <button
           className="btn btn-secondary"
           onClick={() => setDiscreetMode(!discreetMode)}
           title="Toggle privacy mask for numbers on screen"
-          style={{ padding: '8px 12px', fontSize: '0.82rem' }}
+          style={{ padding: '7px 10px', fontSize: '0.8rem' }}
         >
-          {discreetMode ? <EyeOff size={16} color="#fbbf24" /> : <Eye size={16} />}
-          <span>{discreetMode ? 'Discreet On' : 'Discreet Off'}</span>
+          {discreetMode ? <EyeOff size={15} color="#fbbf24" /> : <Eye size={15} />}
         </button>
 
         {/* SQL Explorer Button */}
         <button
           className="btn btn-secondary"
           onClick={onOpenSqlExplorer}
-          title="Inspect & Query Raw SQLite Database"
-          style={{ padding: '8px 14px', fontSize: '0.82rem' }}
+          title="Inspect & Query MySQL Database"
+          style={{ padding: '7px 12px', fontSize: '0.8rem' }}
         >
-          <Database size={16} color="#06b6d4" />
-          <span>SQL Explorer</span>
+          <Database size={15} color="#06b6d4" />
+          <span>MySQL Console</span>
         </button>
 
         {/* Aura AI Coach Button */}
         <button
           className="btn btn-ai"
           onClick={onOpenAura}
-          style={{ padding: '8px 16px', fontSize: '0.82rem' }}
+          style={{ padding: '7px 14px', fontSize: '0.8rem' }}
         >
-          <Sparkles size={16} />
-          <span>Aura AI Coach</span>
+          <Sparkles size={15} />
+          <span>Aura Coach</span>
         </button>
 
         {/* Quick Add Button */}
         <button
           className="btn btn-primary"
           onClick={onOpenQuickAdd}
-          style={{ padding: '8px 18px', fontSize: '0.85rem' }}
+          style={{ padding: '7px 16px', fontSize: '0.82rem' }}
         >
-          <Plus size={18} strokeWidth={2.5} />
+          <Plus size={16} strokeWidth={2.5} />
           <span>Log Expense</span>
         </button>
 
@@ -103,9 +190,9 @@ export function Navbar({
           className="btn btn-secondary"
           onClick={onOpenPinModal}
           title="Vault Security & PIN Lock"
-          style={{ padding: '8px 10px', borderRadius: '10px' }}
+          style={{ padding: '7px 10px', borderRadius: '8px' }}
         >
-          <KeyRound size={17} color={isLocked ? '#f43f5e' : '#94a3b8'} />
+          <KeyRound size={16} color={isLocked ? '#f43f5e' : '#94a3b8'} />
         </button>
       </div>
     </header>

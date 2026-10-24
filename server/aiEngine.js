@@ -405,3 +405,222 @@ export async function askAuraAdvisor(question, db) {
     summary
   };
 }
+
+/**
+ * 📁 Batch Bank Statement CSV Parser & Auto-Categorizer
+ */
+export function batchCategorizeCSV(csvContent) {
+  if (!csvContent || typeof csvContent !== 'string') {
+    throw new Error('Valid CSV content string is required');
+  }
+
+  const lines = csvContent
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) {
+    throw new Error('CSV must contain a header row and at least one transaction row');
+  }
+
+  // Parse header
+  const parseCSVLine = (line) => {
+    const result = [];
+    let insideQuotes = false;
+    let entry = '';
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        insideQuotes = !insideQuotes;
+      } else if (char === ',' && !insideQuotes) {
+        result.push(entry.trim().replace(/^"|"$/g, ''));
+        entry = '';
+      } else {
+        entry += char;
+      }
+    }
+    result.push(entry.trim().replace(/^"|"$/g, ''));
+    return result;
+  };
+
+  const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase());
+
+  // Detect column indexes
+  let dateIdx = headers.findIndex(h => h.includes('date') || h.includes('time'));
+  let descIdx = headers.findIndex(h => h.includes('desc') || h.includes('merchant') || h.includes('memo') || h.includes('payee') || h.includes('name'));
+  let amountIdx = headers.findIndex(h => h.includes('amount') || h.includes('total') || h.includes('sum') || h.includes('debit') || h.includes('credit'));
+  let categoryIdx = headers.findIndex(h => h.includes('category') || h.includes('type'));
+
+  if (dateIdx === -1) dateIdx = 0;
+  if (descIdx === -1) descIdx = 1;
+  if (amountIdx === -1) amountIdx = 2;
+
+  const parsedRows = [];
+  let totalExpense = 0;
+  let totalIncome = 0;
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    if (cols.length < 2) continue;
+
+    const rawDate = cols[dateIdx] || new Date().toISOString().split('T')[0];
+    const rawDesc = cols[descIdx] || 'Bank Transaction';
+    const rawAmountStr = cols[amountIdx] || '0';
+
+    // Parse amount
+    let cleanAmt = parseFloat(rawAmountStr.replace(/[^0-9.-]/g, ''));
+    if (isNaN(cleanAmt)) cleanAmt = 0;
+
+    const isExplicitIncome = cleanAmt > 0 && /deposit|payroll|salary|credit|refund|zelle from/i.test(rawDesc);
+    const isNegativeExpense = cleanAmt < 0;
+    const finalType = (cleanAmt > 0 && isExplicitIncome) ? 'income' : 'expense';
+    const finalAmount = Math.abs(cleanAmt);
+
+    if (finalType === 'expense') totalExpense += finalAmount;
+    else totalIncome += finalAmount;
+
+    // AI categorization
+    const lowerDesc = rawDesc.toLowerCase();
+    let assignedCategory = finalType === 'income' ? 'Salary & Earnings' : 'Groceries & Dining';
+    let matchedRule = null;
+
+    for (const rule of CATEGORY_RULES) {
+      const match = rule.keywords.find(kw => lowerDesc.includes(kw));
+      if (match) {
+        assignedCategory = rule.category;
+        matchedRule = match;
+        break;
+      }
+    }
+
+    // Tax deductibility
+    const isTax = TAX_DEDUCTIBLE_KEYWORDS.some(kw => lowerDesc.includes(kw));
+
+    // Normalize date
+    let formattedDate = new Date().toISOString().split('T')[0];
+    const parsedDateObj = new Date(rawDate);
+    if (!isNaN(parsedDateObj.getTime())) {
+      formattedDate = parsedDateObj.toISOString().split('T')[0];
+    }
+
+    parsedRows.push({
+      original_line: i,
+      raw_desc: rawDesc,
+      date: formattedDate,
+      merchant: rawDesc.slice(0, 40).replace(/^(POS DEBIT|CHECKCARD|ACH DEBIT|PURCHASE)\s+/i, '').trim(),
+      amount: Math.round(finalAmount * 100) / 100,
+      type: finalType,
+      category: assignedCategory,
+      payment_method: /apple pay/i.test(rawDesc) ? 'Apple Pay' : /card|debit/i.test(rawDesc) ? 'Card' : 'Bank Transfer',
+      is_tax_deductible: isTax ? 1 : 0,
+      confidence: matchedRule ? 0.94 : 0.81,
+      matched_hint: matchedRule || 'heuristics'
+    });
+  }
+
+  return {
+    totalRows: parsedRows.length,
+    totalExpense: Math.round(totalExpense * 100) / 100,
+    totalIncome: Math.round(totalIncome * 100) / 100,
+    rows: parsedRows
+  };
+}
+
+/**
+ * 🔮 "What If?" Financial Simulator Engine
+ */
+export async function simulateWhatIfScenario(scenario, db) {
+  const {
+    purchaseAmount = 0,
+    isRecurring = false,
+    recurringMonthly = 0,
+    category = 'Shopping & Gear',
+    description = 'Prospective Purchase'
+  } = scenario;
+
+  const baseline = await generateAuraInsights(db);
+  const [profileRows] = await db.query('SELECT * FROM user_profile WHERE id = 1');
+  const profile = profileRows[0] || { monthly_income_target: 6500 };
+
+  const amt = parseFloat(purchaseAmount) || 0;
+  const recurringAmt = parseFloat(recurringMonthly) || 0;
+  const effectiveExpense = isRecurring ? recurringAmt : amt;
+
+  // New simulated totals
+  const simulatedMonthlyExpense = baseline.totalExpenseMonth + effectiveExpense;
+  const monthlyTarget = parseFloat(profile.monthly_income_target || 6500);
+
+  // Recalculate daily Safe-to-Spend
+  const daysRemaining = baseline.daysRemaining || 10;
+  const effectiveBudget = Math.max(monthlyTarget * 0.75, simulatedMonthlyExpense + 500);
+  const remainingBudget = Math.max(0, effectiveBudget - simulatedMonthlyExpense);
+  const simulatedDailySafe = Math.max(0, Math.round((remainingBudget / daysRemaining) * 100) / 100);
+
+  // Recalculate health score
+  const baselineIncome = baseline.totalIncomeMonth > 0 ? baseline.totalIncomeMonth : monthlyTarget;
+  const newSavingsRate = (baselineIncome - simulatedMonthlyExpense) / baselineIncome;
+  let simulatedScore = 80;
+  if (newSavingsRate > 0.3) simulatedScore += 12;
+  else if (newSavingsRate > 0.15) simulatedScore += 6;
+  else if (newSavingsRate < 0) simulatedScore -= 24;
+
+  // Check category budget
+  const currentCategorySpend = baseline.categorySpend[category] || 0;
+  const [catBudgetRows] = await db.query('SELECT * FROM budgets WHERE category = ?', [category]);
+  const catLimit = catBudgetRows.length > 0 ? parseFloat(catBudgetRows[0].monthly_limit) : 400;
+  const simulatedCategorySpend = currentCategorySpend + effectiveExpense;
+  const categoryRatio = catLimit > 0 ? (simulatedCategorySpend / catLimit) : 1;
+
+  if (categoryRatio > 1.0) simulatedScore -= 12;
+  simulatedScore = Math.min(99, Math.max(25, Math.round(simulatedScore)));
+
+  // Generate Aura Verdict
+  let verdictType = 'APPROVED'; // 'APPROVED' | 'CAUTION' | 'STRESSED'
+  let verdictTitle = 'Safe to Proceed';
+  let verdictMessage = '';
+
+  if (simulatedDailySafe >= 25 && simulatedScore >= 75 && categoryRatio <= 1.1) {
+    verdictType = 'APPROVED';
+    verdictTitle = 'Financial Green Light';
+    verdictMessage = `Your cashflow comfortably absorbs this $${amt.toFixed(2)} purchase. Your Daily Safe-to-Spend remains steady at $${simulatedDailySafe.toFixed(2)}/day with an optimal Health Score of ${simulatedScore}.`;
+  } else if (simulatedDailySafe >= 10 && categoryRatio <= 1.4) {
+    verdictType = 'CAUTION';
+    verdictTitle = 'Manageable with Adjustments';
+    verdictMessage = `This purchase reduces your daily discretionary buffer by $${(baseline.safeToSpendDaily - simulatedDailySafe).toFixed(2)}/day (down to $${simulatedDailySafe.toFixed(2)}/day). We recommend trimming dining out by ~$${(effectiveExpense * 0.3).toFixed(0)} over the next two weeks.`;
+  } else {
+    verdictType = 'STRESSED';
+    verdictTitle = 'Cashflow Pressure Warning';
+    verdictMessage = `Warning: Spending $${amt.toFixed(2)} pushes your ${category} spending to ${Math.round(categoryRatio * 100)}% of budget and drops your daily buffer to $${simulatedDailySafe.toFixed(2)}/day. Consider postponing or financing over a longer period.`;
+  }
+
+  return {
+    description,
+    category,
+    purchaseAmount: amt,
+    isRecurring,
+    baseline: {
+      safeToSpendDaily: baseline.safeToSpendDaily,
+      healthScore: baseline.healthScore,
+      totalExpenseMonth: baseline.totalExpenseMonth,
+      categorySpend: currentCategorySpend
+    },
+    simulated: {
+      safeToSpendDaily: simulatedDailySafe,
+      healthScore: simulatedScore,
+      totalExpenseMonth: Math.round(simulatedMonthlyExpense * 100) / 100,
+      categorySpend: Math.round(simulatedCategorySpend * 100) / 100,
+      categoryLimit: catLimit,
+      categoryPercent: Math.round(categoryRatio * 100)
+    },
+    difference: {
+      safeBufferDrop: Math.round((baseline.safeToSpendDaily - simulatedDailySafe) * 100) / 100,
+      scoreChange: simulatedScore - baseline.healthScore
+    },
+    verdict: {
+      type: verdictType,
+      title: verdictTitle,
+      message: verdictMessage
+    }
+  };
+}
+
