@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { getDbPool, initDatabase } from './db.js';
+import { getDbPool, initDatabase, hashPassword, verifyPassword } from './db.js';
 import {
   parseExpenseNLP,
   parseReceipt,
@@ -19,7 +19,6 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// Initialize MySQL schema & seed data
 let db;
 (async () => {
   try {
@@ -31,6 +30,14 @@ let db;
   }
 })();
 
+// Helper to get userId from headers or query
+function getUserId(req) {
+  const headerId = req.headers['x-user-id'];
+  const queryId = req.query.userId;
+  const parsed = parseInt(headerId || queryId || '0', 10);
+  return parsed > 0 ? parsed : null;
+}
+
 // Helper to format rows with numbers
 function sanitizeTransaction(row) {
   return {
@@ -41,13 +48,135 @@ function sanitizeTransaction(row) {
 }
 
 // -------------------------------------------------------------
-// TRANSACTIONS
+// 🔐 AUTHENTICATION & USER MANAGEMENT
+// -------------------------------------------------------------
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Name, email, and password are required' });
+    }
+
+    if (password.length < 4) {
+      return res.status(400).json({ error: 'Password must be at least 4 characters long' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check if user exists
+    const [existing] = await db.query('SELECT id FROM users WHERE email = ?', [cleanEmail]);
+    if (existing.length > 0) {
+      return res.status(400).json({ error: 'An account already exists with this email. Please log in.' });
+    }
+
+    const { salt, hash } = hashPassword(password);
+
+    const [result] = await db.query(
+      `INSERT INTO users (name, email, password_hash, salt, monthly_income_target)
+       VALUES (?, ?, ?, ?, ?)`,
+      [name.trim(), cleanEmail, hash, salt, 5000.00]
+    );
+
+    const newUserId = result.insertId;
+
+    // Create default category budgets for this new user
+    const defaultBudgets = [
+      [newUserId, 'Housing & Utilities', 1800.00, 0.90],
+      [newUserId, 'Groceries & Dining', 800.00, 0.80],
+      [newUserId, 'Transportation', 350.00, 0.85],
+      [newUserId, 'Entertainment & Tech', 300.00, 0.75],
+      [newUserId, 'Health & Wellness', 250.00, 0.80],
+      [newUserId, 'Shopping & Gear', 400.00, 0.80]
+    ];
+    await db.query(
+      'INSERT INTO budgets (user_id, category, monthly_limit, alert_threshold) VALUES ?',
+      [defaultBudgets]
+    );
+
+    await db.query(
+      'INSERT INTO audit_logs (user_id, action, details) VALUES (?, ?, ?)',
+      [newUserId, 'USER_REGISTERED', `New user registered: ${name} (${cleanEmail})`]
+    );
+
+    res.status(201).json({
+      success: true,
+      user: {
+        id: newUserId,
+        name: name.trim(),
+        email: cleanEmail,
+        monthly_income_target: 5000.00
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const [rows] = await db.query('SELECT * FROM users WHERE email = ?', [cleanEmail]);
+
+    if (rows.length === 0) {
+      return res.status(401).json({ error: 'No account found with this email. Please create an account.' });
+    }
+
+    const user = rows[0];
+    const isMatch = verifyPassword(password, user.salt, user.password_hash);
+
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Incorrect password. Please try again.' });
+    }
+
+    await db.query(
+      'INSERT INTO audit_logs (user_id, action, details) VALUES (?, ?, ?)',
+      [user.id, 'USER_LOGIN', `User logged in: ${user.name} (${user.email})`]
+    );
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        monthly_income_target: parseFloat(user.monthly_income_target || 5000.00)
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+
+    const [rows] = await db.query('SELECT id, name, email, monthly_income_target, created_at FROM users WHERE id = ?', [userId]);
+    if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
+// 💳 TRANSACTIONS (User Scoped)
 // -------------------------------------------------------------
 app.get('/api/transactions', async (req, res) => {
   try {
+    const userId = getUserId(req);
+    if (!userId) return res.json([]); // Return empty array if not logged in
+
     const { type, category, search, limit = 100 } = req.query;
-    let query = `SELECT * FROM transactions WHERE 1=1`;
-    const params = [];
+    let query = `SELECT * FROM transactions WHERE user_id = ?`;
+    const params = [userId];
 
     if (type && type !== 'all') {
       query += ` AND type = ?`;
@@ -75,6 +204,9 @@ app.get('/api/transactions', async (req, res) => {
 
 app.post('/api/transactions', async (req, res) => {
   try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Please log in to save transactions' });
+
     const {
       type = 'expense',
       amount,
@@ -85,8 +217,7 @@ app.post('/api/transactions', async (req, res) => {
       payment_method = 'Card',
       notes = '',
       tags = [],
-      is_tax_deductible = 0,
-      receipt_data = null
+      is_tax_deductible = 0
     } = req.body;
 
     if (!amount || isNaN(parseFloat(amount))) {
@@ -97,9 +228,10 @@ app.post('/api/transactions', async (req, res) => {
 
     const [result] = await db.query(
       `INSERT INTO transactions (
-        type, amount, currency, category, merchant, date, payment_method, notes, tags, is_tax_deductible, receipt_data
+        user_id, type, amount, currency, category, merchant, date, payment_method, notes, tags, is_tax_deductible
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        userId,
         type,
         parseFloat(amount),
         currency,
@@ -109,15 +241,14 @@ app.post('/api/transactions', async (req, res) => {
         payment_method,
         notes,
         tagsJson,
-        is_tax_deductible ? 1 : 0,
-        receipt_data
+        is_tax_deductible ? 1 : 0
       ]
     );
 
     // Audit log
     await db.query(
-      `INSERT INTO audit_logs (action, details) VALUES (?, ?)`,
-      ['TRANSACTION_CREATED', `Logged ${type} of $${parseFloat(amount).toFixed(2)} at ${merchant} (MySQL record #${result.insertId})`]
+      `INSERT INTO audit_logs (user_id, action, details) VALUES (?, ?, ?)`,
+      [userId, 'TRANSACTION_CREATED', `Logged ${type} of $${parseFloat(amount).toFixed(2)} at ${merchant} (MySQL record #${result.insertId})`]
     );
 
     const [createdRows] = await db.query(`SELECT * FROM transactions WHERE id = ?`, [result.insertId]);
@@ -127,63 +258,19 @@ app.post('/api/transactions', async (req, res) => {
   }
 });
 
-app.put('/api/transactions/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const {
-      type,
-      amount,
-      category,
-      merchant,
-      date,
-      payment_method,
-      notes,
-      tags,
-      is_tax_deductible
-    } = req.body;
-
-    const tagsJson = typeof tags === 'string' ? tags : JSON.stringify(tags || []);
-
-    await db.query(
-      `UPDATE transactions
-       SET type = ?, amount = ?, category = ?, merchant = ?, date = ?, payment_method = ?, notes = ?, tags = ?, is_tax_deductible = ?
-       WHERE id = ?`,
-      [
-        type,
-        parseFloat(amount),
-        category,
-        merchant,
-        date,
-        payment_method,
-        notes,
-        tagsJson,
-        is_tax_deductible ? 1 : 0,
-        id
-      ]
-    );
-
-    await db.query(
-      `INSERT INTO audit_logs (action, details) VALUES (?, ?)`,
-      ['TRANSACTION_UPDATED', `Updated transaction #${id} in MySQL`]
-    );
-
-    const [updated] = await db.query(`SELECT * FROM transactions WHERE id = ?`, [id]);
-    res.json(sanitizeTransaction(updated[0]));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.delete('/api/transactions/:id', async (req, res) => {
   try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
     const { id } = req.params;
-    const [txRows] = await db.query(`SELECT * FROM transactions WHERE id = ?`, [id]);
-    await db.query(`DELETE FROM transactions WHERE id = ?`, [id]);
+    const [txRows] = await db.query(`SELECT * FROM transactions WHERE id = ? AND user_id = ?`, [id, userId]);
+    await db.query(`DELETE FROM transactions WHERE id = ? AND user_id = ?`, [id, userId]);
 
     if (txRows.length > 0) {
       await db.query(
-        `INSERT INTO audit_logs (action, details) VALUES (?, ?)`,
-        ['TRANSACTION_DELETED', `Deleted transaction #${id} ($${txRows[0].amount} at ${txRows[0].merchant}) from MySQL`]
+        `INSERT INTO audit_logs (user_id, action, details) VALUES (?, ?, ?)`,
+        [userId, 'TRANSACTION_DELETED', `Deleted transaction #${id} ($${txRows[0].amount} at ${txRows[0].merchant}) from MySQL`]
       );
     }
     res.json({ success: true, id });
@@ -193,20 +280,23 @@ app.delete('/api/transactions/:id', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// BUDGETS
+// 📊 BUDGETS (User Scoped)
 // -------------------------------------------------------------
 app.get('/api/budgets', async (req, res) => {
   try {
+    const userId = getUserId(req);
+    if (!userId) return res.json([]);
+
     const now = new Date();
     const currentMonthPrefix = now.toISOString().slice(0, 7);
 
-    const [budgets] = await db.query(`SELECT * FROM budgets ORDER BY category ASC`);
+    const [budgets] = await db.query(`SELECT * FROM budgets WHERE user_id = ? ORDER BY category ASC`, [userId]);
     const [spendByCategory] = await db.query(
       `SELECT category, SUM(amount) as total_spent
        FROM transactions
-       WHERE type = 'expense' AND date LIKE ?
+       WHERE user_id = ? AND type = 'expense' AND date LIKE ?
        GROUP BY category`,
-      [`${currentMonthPrefix}%`]
+      [userId, `${currentMonthPrefix}%`]
     );
 
     const spendMap = {};
@@ -233,19 +323,17 @@ app.get('/api/budgets', async (req, res) => {
 
 app.post('/api/budgets', async (req, res) => {
   try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
     const { category, monthly_limit, alert_threshold = 0.85 } = req.body;
     await db.query(
-      `INSERT INTO budgets (category, monthly_limit, alert_threshold)
-       VALUES (?, ?, ?)
+      `INSERT INTO budgets (user_id, category, monthly_limit, alert_threshold)
+       VALUES (?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          monthly_limit = VALUES(monthly_limit),
          alert_threshold = VALUES(alert_threshold)`,
-      [category, parseFloat(monthly_limit), parseFloat(alert_threshold)]
-    );
-
-    await db.query(
-      `INSERT INTO audit_logs (action, details) VALUES (?, ?)`,
-      ['BUDGET_UPDATED', `Set MySQL budget for ${category} to $${parseFloat(monthly_limit).toFixed(2)}`]
+      [userId, category, parseFloat(monthly_limit), parseFloat(alert_threshold)]
     );
 
     res.json({ success: true, category, monthly_limit });
@@ -255,11 +343,14 @@ app.post('/api/budgets', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// SUBSCRIPTIONS
+// 🔁 SUBSCRIPTIONS (User Scoped)
 // -------------------------------------------------------------
 app.get('/api/subscriptions', async (req, res) => {
   try {
-    const [subs] = await db.query(`SELECT * FROM recurring_subscriptions ORDER BY next_billing_date ASC`);
+    const userId = getUserId(req);
+    if (!userId) return res.json([]);
+
+    const [subs] = await db.query(`SELECT * FROM recurring_subscriptions WHERE user_id = ? ORDER BY next_billing_date ASC`, [userId]);
     const sanitized = subs.map(s => ({
       ...s,
       amount: parseFloat(s.amount),
@@ -273,16 +364,14 @@ app.get('/api/subscriptions', async (req, res) => {
 
 app.post('/api/subscriptions', async (req, res) => {
   try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
     const { name, amount, billing_cycle = 'Monthly', category = 'Entertainment & Tech', next_billing_date } = req.body;
     const [result] = await db.query(
-      `INSERT INTO recurring_subscriptions (name, amount, billing_cycle, category, next_billing_date)
-       VALUES (?, ?, ?, ?, ?)`,
-      [name, parseFloat(amount), billing_cycle, category, next_billing_date]
-    );
-
-    await db.query(
-      `INSERT INTO audit_logs (action, details) VALUES (?, ?)`,
-      ['SUBSCRIPTION_ADDED', `Added subscription ${name} ($${parseFloat(amount).toFixed(2)}) to MySQL`]
+      `INSERT INTO recurring_subscriptions (user_id, name, amount, billing_cycle, category, next_billing_date)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [userId, name, parseFloat(amount), billing_cycle, category, next_billing_date]
     );
 
     const [created] = await db.query(`SELECT * FROM recurring_subscriptions WHERE id = ?`, [result.insertId]);
@@ -294,8 +383,11 @@ app.post('/api/subscriptions', async (req, res) => {
 
 app.delete('/api/subscriptions/:id', async (req, res) => {
   try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
     const { id } = req.params;
-    await db.query(`DELETE FROM recurring_subscriptions WHERE id = ?`, [id]);
+    await db.query(`DELETE FROM recurring_subscriptions WHERE id = ? AND user_id = ?`, [id, userId]);
     res.json({ success: true, id });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -303,7 +395,7 @@ app.delete('/api/subscriptions/:id', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// AI INTEGRATION
+// 🧠 AI ENDPOINTS (User Scoped)
 // -------------------------------------------------------------
 app.post('/api/ai/parse', (req, res) => {
   try {
@@ -328,7 +420,20 @@ app.post('/api/ai/receipt', (req, res) => {
 
 app.get('/api/ai/insights', async (req, res) => {
   try {
-    const insights = await generateAuraInsights(db);
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.json({
+        healthScore: 100,
+        safeToSpendDaily: 0,
+        totalExpenseMonth: 0,
+        totalIncomeMonth: 0,
+        totalMonthlySubs: 0,
+        budgetAlerts: [],
+        recommendations: [{ title: 'Welcome', desc: 'Please log in or enroll your first expense to begin.', tone: 'positive' }]
+      });
+    }
+
+    const insights = await generateAuraInsights(db, userId);
     res.json(insights);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -337,20 +442,19 @@ app.get('/api/ai/insights', async (req, res) => {
 
 app.post('/api/ai/chat', async (req, res) => {
   try {
+    const userId = getUserId(req) || 1;
     const { message } = req.body;
-    const response = await askAuraAdvisor(message, db);
+    const response = await askAuraAdvisor(message, db, userId);
     res.json(response);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// -------------------------------------------------------------
-// 🔮 "WHAT IF?" FINANCIAL SIMULATOR
-// -------------------------------------------------------------
 app.post('/api/ai/simulate', async (req, res) => {
   try {
-    const simulationResult = await simulateWhatIfScenario(req.body, db);
+    const userId = getUserId(req) || 1;
+    const simulationResult = await simulateWhatIfScenario(req.body, db, userId);
     res.json(simulationResult);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -358,7 +462,7 @@ app.post('/api/ai/simulate', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 📁 BANK STATEMENT CSV BULK IMPORTER
+// 📁 CSV IMPORTER (User Scoped)
 // -------------------------------------------------------------
 app.post('/api/import/parse-csv', (req, res) => {
   try {
@@ -373,12 +477,16 @@ app.post('/api/import/parse-csv', (req, res) => {
 
 app.post('/api/import/batch-commit', async (req, res) => {
   try {
+    const userId = getUserId(req);
+    if (!userId) return res.status(401).json({ error: 'Please log in to import statements' });
+
     const { transactions = [] } = req.body;
     if (!Array.isArray(transactions) || transactions.length === 0) {
       return res.status(400).json({ error: 'No transactions selected for import' });
     }
 
     const rows = transactions.map(t => [
+      userId,
       t.type || 'expense',
       parseFloat(t.amount) || 0,
       'USD',
@@ -392,14 +500,14 @@ app.post('/api/import/batch-commit', async (req, res) => {
     ]);
 
     await db.query(
-      `INSERT INTO transactions (type, amount, currency, category, merchant, date, payment_method, notes, tags, is_tax_deductible)
+      `INSERT INTO transactions (user_id, type, amount, currency, category, merchant, date, payment_method, notes, tags, is_tax_deductible)
        VALUES ?`,
       [rows]
     );
 
     await db.query(
-      `INSERT INTO audit_logs (action, details) VALUES (?, ?)`,
-      ['CSV_BULK_IMPORTED', `Batch imported ${rows.length} transactions from bank CSV into MySQL`]
+      `INSERT INTO audit_logs (user_id, action, details) VALUES (?, ?, ?)`,
+      [userId, 'CSV_BULK_IMPORTED', `Batch imported ${rows.length} transactions from bank CSV into MySQL`]
     );
 
     res.json({ success: true, count: rows.length });
@@ -409,30 +517,17 @@ app.post('/api/import/batch-commit', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// 📅 CASHFLOW CALENDAR & SUBSCRIPTION RENEWAL VIEW
+// 📅 CASHFLOW CALENDAR (User Scoped)
 // -------------------------------------------------------------
 app.get('/api/calendar/month', async (req, res) => {
   try {
+    const userId = getUserId(req);
     const year = parseInt(req.query.year || new Date().getFullYear(), 10);
     const month = parseInt(req.query.month || (new Date().getMonth() + 1), 10);
     const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
-
-    // Get transactions for that month
-    const [txRows] = await db.query(
-      `SELECT id, type, amount, category, merchant, date, notes
-       FROM transactions
-       WHERE date LIKE ?
-       ORDER BY date ASC, id ASC`,
-      [`${monthPrefix}%`]
-    );
-
-    // Get recurring subscriptions
-    const [subRows] = await db.query(`SELECT * FROM recurring_subscriptions WHERE status = 'active'`);
-
-    // Group transactions by day
-    const daysMap = {};
     const daysInMonth = new Date(year, month, 0).getDate();
 
+    const daysMap = {};
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       daysMap[dateStr] = {
@@ -445,34 +540,34 @@ app.get('/api/calendar/month', async (req, res) => {
       };
     }
 
-    // Populate transactions
-    for (const tx of txRows) {
-      const dStr = tx.date instanceof Date ? tx.date.toISOString().split('T')[0] : String(tx.date);
-      if (daysMap[dStr]) {
-        const amt = parseFloat(tx.amount);
-        if (tx.type === 'expense') {
-          daysMap[dStr].totalExpense += amt;
-        } else {
-          daysMap[dStr].totalIncome += amt;
-        }
-        daysMap[dStr].transactions.push({
-          ...tx,
-          amount: amt
-        });
-      }
-    }
+    if (userId) {
+      const [txRows] = await db.query(
+        `SELECT id, type, amount, category, merchant, date, notes
+         FROM transactions
+         WHERE user_id = ? AND date LIKE ?
+         ORDER BY date ASC, id ASC`,
+        [userId, `${monthPrefix}%`]
+      );
 
-    // Check which subscriptions renew in this month
-    for (const sub of subRows) {
-      const subDate = sub.next_billing_date instanceof Date ? sub.next_billing_date.toISOString().split('T')[0] : String(sub.next_billing_date);
-      // If billing cycle is monthly, match on day of month
-      const subDay = parseInt(subDate.split('-')[2] || '1', 10);
-      const targetDateStr = `${year}-${String(month).padStart(2, '0')}-${String(Math.min(subDay, daysInMonth)).padStart(2, '0')}`;
-      if (daysMap[targetDateStr]) {
-        daysMap[targetDateStr].renewals.push({
-          ...sub,
-          amount: parseFloat(sub.amount)
-        });
+      const [subRows] = await db.query(`SELECT * FROM recurring_subscriptions WHERE user_id = ? AND status = 'active'`, [userId]);
+
+      for (const tx of txRows) {
+        const dStr = tx.date instanceof Date ? tx.date.toISOString().split('T')[0] : String(tx.date);
+        if (daysMap[dStr]) {
+          const amt = parseFloat(tx.amount);
+          if (tx.type === 'expense') daysMap[dStr].totalExpense += amt;
+          else daysMap[dStr].totalIncome += amt;
+          daysMap[dStr].transactions.push({ ...tx, amount: amt });
+        }
+      }
+
+      for (const sub of subRows) {
+        const subDate = sub.next_billing_date instanceof Date ? sub.next_billing_date.toISOString().split('T')[0] : String(sub.next_billing_date);
+        const subDay = parseInt(subDate.split('-')[2] || '1', 10);
+        const targetDateStr = `${year}-${String(month).padStart(2, '0')}-${String(Math.min(subDay, daysInMonth)).padStart(2, '0')}`;
+        if (daysMap[targetDateStr]) {
+          daysMap[targetDateStr].renewals.push({ ...sub, amount: parseFloat(sub.amount) });
+        }
       }
     }
 
@@ -488,69 +583,7 @@ app.get('/api/calendar/month', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// SECURITY & PRIVACY
-// -------------------------------------------------------------
-app.get('/api/security/profile', async (req, res) => {
-  try {
-    const [rows] = await db.query(`SELECT * FROM user_profile WHERE id = 1`);
-    const profile = rows[0] || {};
-    res.json({
-      hasPin: Boolean(profile.vault_pin),
-      privacyMode: Boolean(profile.privacy_mode),
-      currencySymbol: profile.currency_symbol || '$',
-      monthlyIncomeTarget: parseFloat(profile.monthly_income_target || 6500),
-      databaseType: 'MySQL Server 8.0',
-      databaseName: process.env.DB_NAME || 'safespend_vault',
-      lastBackup: profile.last_backup
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/security/pin', async (req, res) => {
-  try {
-    const { pin, action = 'set' } = req.body;
-    const [rows] = await db.query(`SELECT * FROM user_profile WHERE id = 1`);
-    const profile = rows[0];
-
-    if (action === 'verify') {
-      const isMatch = profile && profile.vault_pin === pin;
-      return res.json({ success: isMatch });
-    }
-
-    await db.query(`UPDATE user_profile SET vault_pin = ? WHERE id = 1`, [pin]);
-    await db.query(
-      `INSERT INTO audit_logs (action, details) VALUES (?, ?)`,
-      ['VAULT_PIN_CHANGED', pin ? 'Vault 4-digit security PIN enabled' : 'Vault PIN removed']
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/security/toggle-privacy', async (req, res) => {
-  try {
-    const { privacyMode } = req.body;
-    await db.query(`UPDATE user_profile SET privacy_mode = ? WHERE id = 1`, [privacyMode ? 1 : 0]);
-    res.json({ success: true, privacyMode });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/audit-logs', async (req, res) => {
-  try {
-    const [logs] = await db.query(`SELECT * FROM audit_logs ORDER BY id DESC LIMIT 50`);
-    res.json(logs);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// -------------------------------------------------------------
-// SQL DATABASE EXPLORER (Real MySQL Query Console)
+// 🔍 SQL DATABASE EXPLORER (Read-Only)
 // -------------------------------------------------------------
 app.post('/api/sql/query', async (req, res) => {
   try {
@@ -612,36 +645,6 @@ app.get('/api/sql/tables', async (req, res) => {
     }
 
     res.json(tableStats);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Full database backup export as JSON
-app.get('/api/export/json', async (req, res) => {
-  try {
-    const [transactions] = await db.query(`SELECT * FROM transactions`);
-    const [budgets] = await db.query(`SELECT * FROM budgets`);
-    const [subscriptions] = await db.query(`SELECT * FROM recurring_subscriptions`);
-    const [auditLogs] = await db.query(`SELECT * FROM audit_logs`);
-
-    const payload = {
-      app: 'SafeSpend AI MySQL Vault',
-      databaseEngine: 'MySQL 8.0',
-      databaseName: process.env.DB_NAME || 'safespend_vault',
-      exportedAt: new Date().toISOString(),
-      version: '2.0.0',
-      database: {
-        transactions,
-        budgets,
-        subscriptions,
-        auditLogs
-      }
-    };
-
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', 'attachment; filename="safespend_mysql_backup.json"');
-    res.send(JSON.stringify(payload, null, 2));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -221,9 +221,9 @@ export function parseReceipt(rawText) {
 /**
  * Aura AI Financial Guardian (Async for MySQL)
  */
-export async function generateAuraInsights(db) {
-  const [profileRows] = await db.query('SELECT * FROM user_profile WHERE id = 1');
-  const profile = profileRows[0] || { monthly_income_target: 6500 };
+export async function generateAuraInsights(db, userId = 1) {
+  const [userRows] = await db.query('SELECT * FROM users WHERE id = ?', [userId]);
+  const user = userRows[0] || { monthly_income_target: 5000, name: 'User' };
 
   const now = new Date();
   const currentMonthPrefix = now.toISOString().slice(0, 7);
@@ -231,8 +231,8 @@ export async function generateAuraInsights(db) {
   const daysRemaining = Math.max(1, daysInMonth - now.getDate());
 
   const [monthTxs] = await db.query(
-    'SELECT * FROM transactions WHERE date LIKE ?',
-    [`${currentMonthPrefix}%`]
+    'SELECT * FROM transactions WHERE user_id = ? AND date LIKE ?',
+    [userId, `${currentMonthPrefix}%`]
   );
 
   let totalExpenseMonth = 0;
@@ -250,14 +250,14 @@ export async function generateAuraInsights(db) {
   }
 
   // Active recurring subscriptions
-  const [subs] = await db.query('SELECT * FROM recurring_subscriptions WHERE status = "active"');
+  const [subs] = await db.query('SELECT * FROM recurring_subscriptions WHERE user_id = ? AND status = "active"', [userId]);
   const totalMonthlySubs = subs.reduce((acc, s) => {
     const amt = parseFloat(s.amount);
     return acc + (s.billing_cycle === 'Monthly' ? amt : amt / 12);
   }, 0);
 
   // Active budgets
-  const [budgets] = await db.query('SELECT * FROM budgets');
+  const [budgets] = await db.query('SELECT * FROM budgets WHERE user_id = ?', [userId]);
 
   // 1. Budget Alerts
   const budgetAlerts = [];
@@ -347,9 +347,9 @@ export async function generateAuraInsights(db) {
 /**
  * Conversational Financial AI Advisor (Async for MySQL)
  */
-export async function askAuraAdvisor(question, db) {
+export async function askAuraAdvisor(question, db, userId = 1) {
   const q = (question || '').toLowerCase();
-  const summary = await generateAuraInsights(db);
+  const summary = await generateAuraInsights(db, userId);
 
   const topCategories = Object.entries(summary.categorySpend)
     .sort((a, b) => b[1] - a[1])
@@ -529,7 +529,7 @@ export function batchCategorizeCSV(csvContent) {
 /**
  * 🔮 "What If?" Financial Simulator Engine
  */
-export async function simulateWhatIfScenario(scenario, db) {
+export async function simulateWhatIfScenario(scenario, db, userId = 1) {
   const {
     purchaseAmount = 0,
     isRecurring = false,
@@ -538,9 +538,9 @@ export async function simulateWhatIfScenario(scenario, db) {
     description = 'Prospective Purchase'
   } = scenario;
 
-  const baseline = await generateAuraInsights(db);
-  const [profileRows] = await db.query('SELECT * FROM user_profile WHERE id = 1');
-  const profile = profileRows[0] || { monthly_income_target: 6500 };
+  const baseline = await generateAuraInsights(db, userId);
+  const [userRows] = await db.query('SELECT * FROM users WHERE id = ?', [userId]);
+  const user = userRows[0] || { monthly_income_target: 5000 };
 
   const amt = parseFloat(purchaseAmount) || 0;
   const recurringAmt = parseFloat(recurringMonthly) || 0;

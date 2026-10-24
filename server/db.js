@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import crypto from 'node:crypto';
 
 dotenv.config();
 
@@ -19,7 +20,6 @@ let pool = null;
 
 export async function getDbPool() {
   if (!pool) {
-    // 1. Ensure database exists
     const initConn = await mysql.createConnection({
       host: dbConfig.host,
       port: dbConfig.port,
@@ -33,19 +33,45 @@ export async function getDbPool() {
     `);
     await initConn.end();
 
-    // 2. Create the connection pool connected to our database
     pool = mysql.createPool(dbConfig);
   }
   return pool;
 }
 
+// Password hashing utilities using native crypto scrypt
+export function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return { salt, hash };
+}
+
+export function verifyPassword(password, salt, storedHash) {
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(storedHash, 'hex'));
+}
+
 export async function initDatabase() {
   const db = await getDbPool();
 
-  // Create tables
+  // 1. Users Table (Real authentication)
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      salt VARCHAR(64) NOT NULL,
+      currency_symbol VARCHAR(10) DEFAULT '$',
+      monthly_income_target DECIMAL(10, 2) DEFAULT 0.00,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+
+  // 2. Transactions Table (Linked to real user)
   await db.query(`
     CREATE TABLE IF NOT EXISTS transactions (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
       type ENUM('expense', 'income') NOT NULL DEFAULT 'expense',
       amount DECIMAL(10, 2) NOT NULL,
       currency VARCHAR(10) NOT NULL DEFAULT 'USD',
@@ -56,132 +82,52 @@ export async function initDatabase() {
       notes TEXT,
       tags JSON,
       is_tax_deductible TINYINT(1) DEFAULT 0,
-      receipt_data MEDIUMTEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_date (date),
-      INDEX idx_category (category),
-      INDEX idx_type (type)
+      INDEX idx_user_date (user_id, date),
+      INDEX idx_user_type (user_id, type),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
+  // 3. Budgets Table
   await db.query(`
     CREATE TABLE IF NOT EXISTS budgets (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      category VARCHAR(100) NOT NULL UNIQUE,
+      user_id INT NOT NULL,
+      category VARCHAR(100) NOT NULL,
       monthly_limit DECIMAL(10, 2) NOT NULL,
-      alert_threshold DECIMAL(3, 2) DEFAULT 0.85
+      alert_threshold DECIMAL(3, 2) DEFAULT 0.85,
+      UNIQUE KEY unique_user_category (user_id, category),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
+  // 4. Recurring Subscriptions Table
   await db.query(`
     CREATE TABLE IF NOT EXISTS recurring_subscriptions (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
       name VARCHAR(150) NOT NULL,
       amount DECIMAL(10, 2) NOT NULL,
       billing_cycle ENUM('Monthly', 'Annual', 'Weekly') NOT NULL DEFAULT 'Monthly',
       category VARCHAR(100) NOT NULL,
       next_billing_date DATE NOT NULL,
-      status VARCHAR(20) DEFAULT 'active'
+      status VARCHAR(20) DEFAULT 'active',
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
+  // 5. Audit Logs Table
   await db.query(`
     CREATE TABLE IF NOT EXISTS audit_logs (
       id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT,
       action VARCHAR(100) NOT NULL,
       details TEXT,
       timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
 
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS user_profile (
-      id INT PRIMARY KEY,
-      vault_pin VARCHAR(255) DEFAULT NULL,
-      currency_symbol VARCHAR(10) DEFAULT '$',
-      monthly_income_target DECIMAL(10, 2) DEFAULT 6500.00,
-      privacy_mode TINYINT(1) DEFAULT 0,
-      last_backup TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-  `);
-
-  // Default profile check
-  const [profileRows] = await db.query('SELECT count(*) as cnt FROM user_profile');
-  if (profileRows[0].cnt === 0) {
-    await db.query(`
-      INSERT INTO user_profile (id, vault_pin, currency_symbol, monthly_income_target, privacy_mode)
-      VALUES (1, NULL, '$', 6500.00, 0)
-    `);
-  }
-
-  // Default budgets
-  const [budgetRows] = await db.query('SELECT count(*) as cnt FROM budgets');
-  if (budgetRows[0].cnt === 0) {
-    const defaultBudgets = [
-      ['Housing & Utilities', 1800.00, 0.90],
-      ['Groceries & Dining', 800.00, 0.80],
-      ['Transportation', 350.00, 0.85],
-      ['Entertainment & Tech', 300.00, 0.75],
-      ['Health & Wellness', 250.00, 0.80],
-      ['Shopping & Gear', 400.00, 0.80]
-    ];
-    await db.query(
-      'INSERT INTO budgets (category, monthly_limit, alert_threshold) VALUES ?',
-      [defaultBudgets]
-    );
-  }
-
-  // Default seed transactions
-  const [txRows] = await db.query('SELECT count(*) as cnt FROM transactions');
-  if (txRows[0].cnt === 0) {
-    await seedInitialData(db);
-  }
-}
-
-async function seedInitialData(db) {
-  const now = new Date();
-  const formatDaysAgo = (days) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - days);
-    return d.toISOString().split('T')[0];
-  };
-
-  const sampleTransactions = [
-    ['income', 3250.00, 'USD', 'Salary & Earnings', 'Tech Corp Payroll', formatDaysAgo(2), 'Bank Transfer', 'Bi-weekly direct deposit', JSON.stringify(['payroll', 'primary']), 0],
-    ['income', 650.00, 'USD', 'Freelance & Side Gig', 'Design Studio Client', formatDaysAgo(10), 'Stripe', 'UI Design sprint milestone', JSON.stringify(['freelance', 'side-income']), 0],
-    ['expense', 1450.00, 'USD', 'Housing & Utilities', 'Aura Heights Apartments', formatDaysAgo(24), 'Bank Transfer', 'Monthly rent', JSON.stringify(['housing', 'fixed']), 0],
-    ['expense', 124.50, 'USD', 'Housing & Utilities', 'CleanPower Grid', formatDaysAgo(14), 'Card', 'Electricity & heating', JSON.stringify(['utilities']), 0],
-    ['expense', 84.60, 'USD', 'Groceries & Dining', 'Whole Foods Market', formatDaysAgo(1), 'Apple Pay', 'Organic groceries & fresh produce', JSON.stringify(['groceries', 'healthy']), 0],
-    ['expense', 46.20, 'USD', 'Groceries & Dining', 'Artisan Bakery & Cafe', formatDaysAgo(3), 'Card', 'Brunch with colleagues', JSON.stringify(['dining', 'social']), 0],
-    ['expense', 32.10, 'USD', 'Groceries & Dining', 'Blue Bottle Coffee', formatDaysAgo(5), 'Card', 'Single-origin espresso & beans', JSON.stringify(['coffee']), 0],
-    ['expense', 55.00, 'USD', 'Transportation', 'Shell Mobility', formatDaysAgo(6), 'Card', 'Gas refill', JSON.stringify(['commute']), 0],
-    ['expense', 24.50, 'USD', 'Transportation', 'Uber Technologies', formatDaysAgo(8), 'Card', 'Ride home from city center', JSON.stringify(['ride-share']), 0],
-    ['expense', 21.99, 'USD', 'Entertainment & Tech', 'Netflix 4K Premium', formatDaysAgo(12), 'Card', 'Family streaming tier', JSON.stringify(['subscription']), 0],
-    ['expense', 20.00, 'USD', 'Entertainment & Tech', 'OpenAI ChatGPT Plus', formatDaysAgo(15), 'Card', 'AI research assistant', JSON.stringify(['ai', 'work', 'deductible']), 1],
-    ['expense', 79.00, 'USD', 'Health & Wellness', 'Equinox Fitness Club', formatDaysAgo(18), 'Card', 'Gym & recovery access', JSON.stringify(['fitness', 'health']), 0],
-    ['expense', 145.00, 'USD', 'Shopping & Gear', 'Amazon Services', formatDaysAgo(4), 'Card', 'Ergonomic desk light & USB-C hub', JSON.stringify(['home-office', 'tech']), 1]
-  ];
-
-  await db.query(
-    `INSERT INTO transactions (type, amount, currency, category, merchant, date, payment_method, notes, tags, is_tax_deductible) VALUES ?`,
-    [sampleTransactions]
-  );
-
-  const sampleSubscriptions = [
-    ['Netflix Premium', 21.99, 'Monthly', 'Entertainment & Tech', formatDaysAgo(-16)],
-    ['ChatGPT Plus', 20.00, 'Monthly', 'Entertainment & Tech', formatDaysAgo(-13)],
-    ['Spotify Duo', 14.99, 'Monthly', 'Entertainment & Tech', formatDaysAgo(-7)],
-    ['Equinox Gym Pass', 79.00, 'Monthly', 'Health & Wellness', formatDaysAgo(-10)],
-    ['GitHub Copilot', 10.00, 'Monthly', 'Entertainment & Tech', formatDaysAgo(-21)]
-  ];
-
-  await db.query(
-    `INSERT INTO recurring_subscriptions (name, amount, billing_cycle, category, next_billing_date) VALUES ?`,
-    [sampleSubscriptions]
-  );
-
-  await db.query(
-    `INSERT INTO audit_logs (action, details) VALUES (?, ?)`,
-    ['MYSQL_INITIALIZED', 'SafeSpend AI connected to MySQL 8.0 server on localhost:3306 (database: safespend_vault)']
-  );
+  // NOTE: Clean start - Zero fake transactions seeded.
+  console.log('✅ MySQL schema initialized: Clean state, ready for real user enrollments.');
 }
