@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Sparkles, Receipt, PenLine, Check, ArrowRight, ShieldCheck, Tag, Calendar, DollarSign, Building } from 'lucide-react';
+import { Plus, X, Sparkles, Receipt, PenLine, Check, ArrowRight, ShieldCheck, Tag, Calendar, DollarSign, Building } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 const SAMPLE_PROMPTS = [
