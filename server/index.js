@@ -210,11 +210,11 @@ app.post('/api/transactions', async (req, res) => {
     const {
       type = 'expense',
       amount,
-      currency = 'USD',
+      currency = 'INR',
       category = 'Groceries & Dining',
       merchant = 'General Merchant',
       date = new Date().toISOString().split('T')[0],
-      payment_method = 'Card',
+      payment_method = 'UPI',
       notes = '',
       tags = [],
       is_tax_deductible = 0

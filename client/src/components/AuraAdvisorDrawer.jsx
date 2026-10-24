@@ -3,7 +3,7 @@ import { X, Sparkles, Send, ShieldAlert, TrendingUp, CheckCircle, HelpCircle } f
 
 const SUGGESTED_QUESTIONS = [
   "What is my daily Safe-to-Spend today?",
-  "Can I afford a $280 weekend dinner?",
+  "Can I afford a ₹2,500 weekend dinner?",
   "Where can I cut expenses this month?",
   "Audit my recurring subscriptions",
   "How is my financial health score calculated?"
@@ -13,7 +13,7 @@ export function AuraAdvisorDrawer({ isOpen, onClose, insights, onRefresh }) {
   const [messages, setMessages] = useState([
     {
       sender: 'aura',
-      text: "Hello! I'm **Aura**, your private AI Financial Guardian. I analyze your local SQLite ledger to identify cashflow opportunities, alert you of budget anomalies, and compute your daily Safe-to-Spend allowance. How can I assist you today?"
+      text: "Hello! I'm **Aura**, your private AI Financial Guardian. I analyze your local MySQL ledger to identify cashflow opportunities, alert you of budget anomalies, and compute your daily Safe-to-Spend allowance in Rupees (₹). How can I assist you today?"
     }
   ]);
   const [inputVal, setInputVal] = useState('');
@@ -120,7 +120,7 @@ export function AuraAdvisorDrawer({ isOpen, onClose, insights, onRefresh }) {
             <div style={{ textAlign: 'right' }}>
               <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase' }}>Daily Safe Buffer</span>
               <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#38bdf8' }}>
-                ${insights.safeToSpendDaily.toFixed(2)}/day
+                ₹{insights.safeToSpendDaily.toLocaleString('en-IN', { maximumFractionDigits: 0 })}/day
               </div>
             </div>
           </div>

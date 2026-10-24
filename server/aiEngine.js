@@ -10,44 +10,44 @@
 const CATEGORY_RULES = [
   {
     category: 'Groceries & Dining',
-    keywords: ['coffee', 'starbucks', 'blue bottle', 'chipotle', 'mcdonald', 'restaurant', 'dinner', 'lunch', 'breakfast', 'brunch', 'food', 'groceries', 'whole foods', 'trader joe', 'safeway', 'kroger', 'pizza', 'sushi', 'baker', 'bar', 'drinks', 'cafe', 'uber eats', 'doordash', 'grubhub', 'supermarket', 'tea']
+    keywords: ['swiggy', 'zomato', 'zepto', 'blinkit', 'instamart', 'dmart', 'kirana', 'biryani', 'chai', 'tea', 'coffee', 'starbucks', 'restaurant', 'dinner', 'lunch', 'breakfast', 'brunch', 'food', 'groceries', 'supermarket', 'dhaba', 'mithai', 'bakery', 'sweets', 'mcdonald', 'dominos', 'pizza']
   },
   {
     category: 'Housing & Utilities',
-    keywords: ['rent', 'mortgage', 'electric', 'power', 'water', 'internet', 'wifi', 'utility', 'utilities', 'gas bill', 'apartment', 'landlord', 'hvac', 'plumbing', 'maintenance']
+    keywords: ['rent', 'bijli', 'electric', 'power', 'water bill', 'jio fiber', 'airtel', 'wifi', 'internet', 'cylinder', 'lpg', 'gas bill', 'maintenance', 'maid', 'cook', 'apartment', 'plumbing']
   },
   {
     category: 'Transportation',
-    keywords: ['uber', 'lyft', 'gas', 'fuel', 'shell', 'chevron', 'bp', 'subway', 'metro', 'bus', 'train', 'parking', 'toll', 'flight', 'airline', 'transit', 'car wash', 'mechanic', 'oil change']
+    keywords: ['auto', 'rickshaw', 'ola', 'uber', 'rapido', 'metro', 'train', 'irctc', 'petrol', 'diesel', 'fuel', 'fastag', 'toll', 'bus', 'flight', 'indigo', 'parking', 'mechanic']
   },
   {
     category: 'Entertainment & Tech',
-    keywords: ['netflix', 'spotify', 'hulu', 'disney', 'youtube', 'openai', 'chatgpt', 'github', 'amazon prime', 'steam', 'game', 'gaming', 'playstation', 'xbox', 'cinema', 'movie', 'concert', 'ticket', 'software', 'cloud', 'aws', 'icloud']
+    keywords: ['hotstar', 'jio cinema', 'netflix', 'spotify', 'amazon prime', 'youtube', 'bookmyshow', 'cinema', 'movie', 'recharge', 'openai', 'chatgpt', 'software', 'gaming', 'steam']
   },
   {
     category: 'Health & Wellness',
-    keywords: ['gym', 'fitness', 'equinox', 'pharmacy', 'cvs', 'walgreens', 'doctor', 'clinic', 'dental', 'dentist', 'therapy', 'massage', 'vitamins', 'medication', 'hospital', 'yoga', 'pilates']
+    keywords: ['apollo', 'pharmeasy', '1mg', 'pharmacy', 'medicine', 'gym', 'cult', 'fitness', 'doctor', 'clinic', 'dental', 'dentist', 'hospital']
   },
   {
     category: 'Shopping & Gear',
-    keywords: ['amazon', 'apple', 'target', 'walmart', 'clothes', 'shoes', 'electronics', 'furniture', 'hardware', 'ikea', 'gadget', 'clothing', 'fashion', 'zara', 'nike', 'home depot']
+    keywords: ['flipkart', 'amazon', 'myntra', 'meesho', 'ajio', 'reliance', 'croma', 'clothes', 'shoes', 'electronics', 'furniture', 'zara', 'nike']
   },
   {
     category: 'Salary & Earnings',
-    keywords: ['salary', 'paycheck', 'payroll', 'direct deposit', 'wage', 'bonus', 'employer', 'compensation']
+    keywords: ['salary', 'paycheck', 'payroll', 'direct deposit', 'wage', 'bonus', 'stipend', 'credited']
   },
   {
     category: 'Freelance & Side Gig',
-    keywords: ['freelance', 'client', 'contract', 'upwork', 'fiverr', 'consulting', 'gig', 'stripe payout', 'invoice payment', 'side gig']
+    keywords: ['freelance', 'client', 'consulting', 'upwork', 'fiverr', 'project fee', 'invoice']
   }
 ];
 
 const TAX_DEDUCTIBLE_KEYWORDS = [
-  'tax', 'deductible', 'client', 'business', 'consulting', 'work', 'office', 'software', 'laptop', 'equipment', 'conference', 'meeting', 'server', 'hosting', 'domain'
+  'tax', 'deductible', 'client', 'business', 'consulting', 'work', 'office', 'software', 'laptop', 'gst', 'tds'
 ];
 
 /**
- * Natural Language Expense Parser
+ * Natural Language Expense Parser (Rupee & UPI Aware)
  */
 export function parseExpenseNLP(text) {
   if (!text || typeof text !== 'string') {
@@ -58,15 +58,15 @@ export function parseExpenseNLP(text) {
   const lower = cleaned.toLowerCase();
 
   // 1. Detect Type
-  const isIncome = /\b(salary|earned|income|received|got paid|deposit|paycheck|invoice paid|sold|client paid|bonus|dividend)\b/i.test(cleaned);
+  const isIncome = /\b(salary|earned|income|received|got paid|deposit|paycheck|invoice paid|sold|client paid|bonus|dividend|credited)\b/i.test(cleaned);
   const type = isIncome ? 'income' : 'expense';
 
-  // 2. Extract Amount
+  // 2. Extract Amount (Rupees aware: ₹500, rs 500, 500 rs, 500 inr, inr 500)
   let amount = null;
   const regexPatterns = [
-    /(?:spent|paid|received|cost|bought|for|of)?\s*[\$€£₹]\s*([0-9]+(?:\.[0-9]{1,2})?)/i,
-    /([0-9]+(?:\.[0-9]{1,2})?)\s*(?:dollars|bucks|usd|eur|gbp|inr)/i,
-    /[\$€£₹]\s*([0-9]+(?:\.[0-9]{1,2})?)/i,
+    /(?:spent|paid|received|cost|bought|for|of)?\s*(?:₹|rs\.?|inr)\s*([0-9]+(?:\.[0-9]{1,2})?)/i,
+    /([0-9]+(?:\.[0-9]{1,2})?)\s*(?:₹|rs\.?|rupees|inr|bucks)/i,
+    /(?:₹|rs\.?|inr)\s*([0-9]+(?:\.[0-9]{1,2})?)/i,
     /\b([0-9]+(?:\.[0-9]{1,2})?)\b/
   ];
 
@@ -74,7 +74,7 @@ export function parseExpenseNLP(text) {
     const m = cleaned.match(pat);
     if (m && m[1]) {
       const parsed = parseFloat(m[1].replace(/,/g, ''));
-      if (!isNaN(parsed) && parsed > 0 && parsed < 10000000) {
+      if (!isNaN(parsed) && parsed > 0 && parsed < 100000000) {
         amount = parsed;
         break;
       }
@@ -82,20 +82,22 @@ export function parseExpenseNLP(text) {
   }
 
   if (!amount) {
-    amount = 25.00;
+    amount = 100.00;
   }
 
   // 3. Extract Tags
   const tagMatches = cleaned.match(/#([a-zA-Z0-9_\-]+)/g);
   const tags = tagMatches ? tagMatches.map(t => t.replace('#', '').toLowerCase()) : [];
 
-  // 4. Extract Payment Method
-  let paymentMethod = 'Card';
-  if (/\b(cash)\b/i.test(cleaned)) paymentMethod = 'Cash';
-  else if (/\b(apple pay|google pay|applepay)\b/i.test(cleaned)) paymentMethod = 'Apple Pay';
-  else if (/\b(bank transfer|wire|ach|direct deposit)\b/i.test(cleaned)) paymentMethod = 'Bank Transfer';
-  else if (/\b(crypto|bitcoin|eth|sol)\b/i.test(cleaned)) paymentMethod = 'Crypto';
-  else if (/\b(paypal|venmo|zelle|stripe)\b/i.test(cleaned)) paymentMethod = 'Digital Wallet';
+  // 4. Extract Payment Method (Indian UPI, GPay, PhonePe, Paytm, Cash, Card)
+  let paymentMethod = 'UPI';
+  if (/\b(phonepe|phone pe)\b/i.test(cleaned)) paymentMethod = 'PhonePe';
+  else if (/\b(google pay|gpay|g pay)\b/i.test(cleaned)) paymentMethod = 'Google Pay';
+  else if (/\b(paytm)\b/i.test(cleaned)) paymentMethod = 'Paytm';
+  else if (/\b(upi|qr)\b/i.test(cleaned)) paymentMethod = 'UPI';
+  else if (/\b(cash)\b/i.test(cleaned)) paymentMethod = 'Cash';
+  else if (/\b(netbanking|net banking|neft|rtgs|imps)\b/i.test(cleaned)) paymentMethod = 'Net Banking';
+  else if (/\b(card|credit card|debit card)\b/i.test(cleaned)) paymentMethod = 'Card';
 
   // 5. Categorization
   let category = type === 'income' ? 'Salary & Earnings' : 'Groceries & Dining';
@@ -147,7 +149,7 @@ export function parseExpenseNLP(text) {
   return {
     type,
     amount: Math.round(amount * 100) / 100,
-    currency: 'USD',
+    currency: 'INR',
     category,
     merchant,
     date,
@@ -156,7 +158,7 @@ export function parseExpenseNLP(text) {
     tags,
     is_tax_deductible: isTaxDeductible ? 1 : 0,
     confidence: matchedRule ? 0.95 : 0.82,
-    ai_reasoning: `Extracted ${type} of $${amount.toFixed(2)} categorized under "${category}" based on context "${matchedRule || 'general transaction'}"`
+    ai_reasoning: `Extracted ${type} of ₹${amount.toFixed(2)} categorized under "${category}" based on context "${matchedRule || 'general transaction'}"`
   };
 }
 

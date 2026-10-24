@@ -4,26 +4,24 @@ import confetti from 'canvas-confetti';
 
 const SAMPLE_CSV_PRESETS = [
   {
-    name: 'Chase Bank Checking Export',
-    content: `Details,Posting Date,Description,Amount,Type,Balance
-DEBIT,2026-10-22,WHOLE FOODS MKT 1042,-64.20,DEBIT,4820.10
-DEBIT,2026-10-21,CHEVRON GAS STATION,-48.50,DEBIT,4884.30
-CREDIT,2026-10-20,DIRECT DEPOSIT PAYROLL TECH CORP,3200.00,CREDIT,4932.80
-DEBIT,2026-10-19,NETFLIX STREAMING SERVICES,-21.99,DEBIT,1732.80
-DEBIT,2026-10-18,UBER TRIP SAN FRANCISCO,-34.50,DEBIT,1754.79
-DEBIT,2026-10-16,OPENAI CHATGPT PLUS SUBSCRIPTION,-20.00,DEBIT,1789.29
-DEBIT,2026-10-15,EQUINOX SPORTS CLUB MEMBERSHIP,-79.00,DEBIT,1809.29
-CREDIT,2026-10-12,STRIPE PAYOUT FREELANCE DESIGN,650.00,CREDIT,1888.29`
+    name: 'HDFC Bank Account Statement',
+    content: `Date,Narration,Withdrawal,Deposit,Balance
+2026-10-24,UPI-SWIGGY-BANGALORE,450.00,,42300.00
+2026-10-23,UPI-ZEPTO-GROCERY,320.00,,42750.00
+2026-10-22,SALARY CREDIT TECH CORP,,65000.00,43070.00
+2026-10-20,NETFLIX MUMBAI SUBSCRIPTION,649.00,,43070.00
+2026-10-18,AUTO RICKSHAW BANGALORE,85.00,,43719.00
+2026-10-15,DMART SUPERMARKET BILL,2840.00,,43804.00
+2026-10-12,UPI-ZOMATO-ORDER,380.00,,46644.00`
   },
   {
-    name: 'Bank of America Statement',
-    content: `Date,Description,Amount,Running Bal.
-2026-10-23,STARBUCKS STORE 08412,-6.85,3420.50
-2026-10-21,TRADER JOE'S GROCERY,-78.40,3427.35
-2026-10-19,SHELL OIL AUTO REFILL,-52.00,3505.75
-2026-10-17,APPLE.COM/BILL ICLOUD STORAGE,-9.99,3557.75
-2026-10-14,AMAZON.COM HOME OFFICE LIGHT,-84.50,3567.74
-2026-10-11,BLUE BOTTLE COFFEE,-14.20,3652.24`
+    name: 'SBI Bank Statement',
+    content: `Txn Date,Description,Debit,Credit,Balance
+2026-10-23,UPI/98234120/AMAZON INDIA,1250.00,,18200.00
+2026-10-21,PETROL HPCL FUEL PUMP,500.00,,19450.00
+2026-10-19,AIRTEL BROADBAND BILL,943.00,,19950.00
+2026-10-17,UBER RIDE MUMBAI,280.00,,20893.00
+2026-10-14,FREELANCE PAYMENT CONSULTING,,15000.00,21173.00`
   }
 ];
 
@@ -284,10 +282,10 @@ export function CsvImporterModal({ isOpen, onClose, onImportComplete }) {
                   Total Extracted: <strong style={{ color: '#ffffff' }}>{parsedData.totalRows} rows</strong>
                 </span>
                 <span style={{ color: '#34d399' }}>
-                  Inflow: <strong>+${parsedData.totalIncome.toFixed(2)}</strong>
+                  Inflow: <strong>+₹{parsedData.totalIncome.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</strong>
                 </span>
                 <span style={{ color: '#f43f5e' }}>
-                  Outflow: <strong>-${parsedData.totalExpense.toFixed(2)}</strong>
+                  Outflow: <strong>-₹{parsedData.totalExpense.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</strong>
                 </span>
               </div>
 
@@ -369,7 +367,7 @@ export function CsvImporterModal({ isOpen, onClose, onImportComplete }) {
                           color: isExpense ? '#f43f5e' : '#34d399',
                           whiteSpace: 'nowrap'
                         }}>
-                          {isExpense ? '-' : '+'}${row.amount.toFixed(2)}
+                          {isExpense ? '-' : '+'}₹{row.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
                     );
@@ -398,7 +396,7 @@ export function CsvImporterModal({ isOpen, onClose, onImportComplete }) {
                   disabled={isCommitting || selectedIndices.size === 0}
                   style={{ fontSize: '0.85rem' }}
                 >
-                  <Check size={16} /> {isCommitting ? 'Writing to MySQL...' : `Commit ${selectedIndices.size} Rows to MySQL Vault`}
+                  <Check size={16} /> {isCommitting ? 'Writing to MySQL...' : `Save ${selectedIndices.size} Records to Database`}
                 </button>
               </div>
             </div>

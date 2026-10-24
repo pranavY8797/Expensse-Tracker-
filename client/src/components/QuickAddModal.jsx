@@ -3,51 +3,40 @@ import { X, Sparkles, Receipt, PenLine, Check, ArrowRight, ShieldCheck, Tag, Cal
 import confetti from 'canvas-confetti';
 
 const SAMPLE_PROMPTS = [
-  "Dinner with team at Chipotle $38.40 on Card #team",
-  "Spent $65 at Shell for gas on Apple Pay",
-  "Blue Bottle iced latte and croissant $14.50",
-  "Received freelance client payout $850 #freelance #tax",
-  "Equinox gym membership renewal 79 usd",
-  "Bought USB-C hub at Amazon for office work $45.99 #tax"
+  "Dinner on Swiggy ₹450 with PhonePe #food",
+  "Auto rickshaw to metro ₹60 via UPI",
+  "Zepto grocery delivery ₹380 #groceries",
+  "Petrol refill ₹500 at IndianOil on Card",
+  "Received freelance client milestone ₹15000 #client",
+  "Electricity bijli bill ₹1450 via GPay #utilities"
 ];
 
 const SAMPLE_RECEIPTS = [
   {
-    label: 'Whole Foods Market ($74.20)',
-    text: `WHOLE FOODS MARKET #1042
-123 ORGANIC WAY, METROPOLIS
+    label: 'D-Mart Supermarket (₹840.00)',
+    text: `DMART HYPERMARKET #42
+BANDRA WEST, MUMBAI
 --------------------------------
-ORGANIC ROLLED OATS       $ 5.99
-ALMOND MILK UNSWEETENED   $ 3.89
-AVOCADOS 4-PACK           $ 6.49
-WILD ALASKAN SALMON      $ 28.50
-DARK ROAST WHOLE BEAN    $ 14.99
-GREEK YOGURT 32OZ         $ 7.20
-SUBTOTAL                 $ 67.06
-TAX (8.25%)              $  7.14
-TOTAL                    $ 74.20
-AUTH: MASTERCARD **** 4092`
+AASHIRVAAD ATTA 5KG       ₹ 245.00
+FORTUNE OIL 1L            ₹ 165.00
+AMUL BUTTER 500G          ₹ 275.00
+TATA SALT 1KG             ₹  28.00
+MAGGI NOODLES 4-PACK      ₹  56.00
+SUBTOTAL                  ₹ 769.00
+GST (5%)                  ₹  71.00
+TOTAL                     ₹ 840.00
+PAYMENT: UPI PHONEPE`
   },
   {
-    label: 'Uber Technologies Ride ($34.80)',
-    text: `UBER TRIP RECEIPT
-TRIP ID: 9482-A02-UBER
+    label: 'Ola Cabs Airport Ride (₹480.00)',
+    text: `OLA CABS TRIP RECEIPT
+CRN: 94820129-OLA
 --------------------------------
-AIRPORT DROP-OFF TRIP     $ 28.50
-SURCHARGE TOLL            $  3.50
-LOCAL ACCESS FEE          $  2.80
-TOTAL CHARGED             $ 34.80
-PAYMENT: APPLE PAY VISA`
-  },
-  {
-    label: 'Home Depot Supplies ($118.45)',
-    text: `THE HOME DEPOT #8410
-HARDWARE & FASTENERS     $ 32.10
-LED STRIP WORKLIGHTS     $ 45.00
-ACRYLIC FINISH PRIMER    $ 28.90
-SALES TAX                $ 12.45
-TOTAL                    $ 118.45
-CASH TENDERED`
+BASE FARE                 ₹ 380.00
+AIRPORT TOLL              ₹  60.00
+RIDE TIME CHARGES         ₹  40.00
+TOTAL CHARGED             ₹ 480.00
+PAYMENT: GOOGLE PAY UPI`
   }
 ];
 
@@ -70,7 +59,7 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
   const [manualCategory, setManualCategory] = useState('Groceries & Dining');
   const [manualMerchant, setManualMerchant] = useState('');
   const [manualDate, setManualDate] = useState(new Date().toISOString().split('T')[0]);
-  const [manualPaymentMethod, setManualPaymentMethod] = useState('Card');
+  const [manualPaymentMethod, setManualPaymentMethod] = useState('UPI');
   const [manualNotes, setManualNotes] = useState('');
   const [manualTax, setManualTax] = useState(false);
 
@@ -333,7 +322,7 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
                 rows={3}
                 value={nlpPrompt}
                 onChange={(e) => setNlpPrompt(e.target.value)}
-                placeholder="Type naturally: 'Dinner with client at Nobu $140 on Visa #business' or 'Gas 45 bucks yesterday'"
+                placeholder="Type naturally: 'Dinner on Swiggy ₹450 with PhonePe' or 'Auto rickshaw ₹60 via UPI' or 'Zepto groceries ₹380'..."
                 style={{
                   width: '100%',
                   padding: '14px 16px',
@@ -424,7 +413,7 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
                   <div style={{ background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '10px' }}>
                     <span style={{ fontSize: '0.7rem', color: '#64748b' }}>AMOUNT</span>
                     <div style={{ fontSize: '1.2rem', fontWeight: 700, color: parsedResult.type === 'income' ? '#34d399' : '#f43f5e' }}>
-                      {parsedResult.type === 'income' ? '+' : '-'}${parsedResult.amount.toFixed(2)}
+                      {parsedResult.type === 'income' ? '+' : '-'}₹{parsedResult.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </div>
                   </div>
 
@@ -455,7 +444,7 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
                     Discard
                   </button>
                   <button className="btn btn-primary" onClick={handleConfirmNLP} style={{ fontSize: '0.85rem' }}>
-                    <Check size={16} /> Confirm & Insert into SQL Vault
+                    <Check size={16} /> Confirm & Insert into Database
                   </button>
                 </div>
               </div>
@@ -540,7 +529,7 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <span style={{ fontSize: '0.7rem', color: '#c084fc', textTransform: 'uppercase' }}>TOTAL CHARGED</span>
-                    <h4 style={{ fontSize: '1.25rem', color: '#f43f5e' }}>${parsedReceipt.total.toFixed(2)}</h4>
+                    <h4 style={{ fontSize: '1.25rem', color: '#f43f5e' }}>₹{parsedReceipt.total.toFixed(2)}</h4>
                   </div>
                 </div>
 
@@ -549,7 +538,7 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
                     {parsedReceipt.items.map((it, idx) => (
                       <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                         <span style={{ color: '#cbd5e1' }}>{it.name}</span>
-                        <span style={{ color: '#f1f5f9', fontWeight: 600 }}>${it.price.toFixed(2)}</span>
+                        <span style={{ color: '#f1f5f9', fontWeight: 600 }}>₹{it.price.toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
@@ -560,7 +549,7 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
                     Discard
                   </button>
                   <button className="btn btn-ai" onClick={handleConfirmReceipt} style={{ fontSize: '0.85rem' }}>
-                    <Check size={16} /> Save Receipt to Vault
+                    <Check size={16} /> Save Receipt to Database
                   </button>
                 </div>
               </div>
@@ -611,7 +600,7 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
               </div>
 
               <div>
-                <label style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '5px' }}>Amount ($)</label>
+                <label style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '5px' }}>Amount (₹)</label>
                 <input
                   type="number"
                   step="0.01"

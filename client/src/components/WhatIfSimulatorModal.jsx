@@ -3,18 +3,18 @@ import { X, Sparkles, TrendingDown, CheckCircle, AlertTriangle, HelpCircle, Arro
 import confetti from 'canvas-confetti';
 
 const PRESET_SCENARIOS = [
-  { desc: 'Apple MacBook Pro M3', amount: 1499, category: 'Shopping & Gear', recurring: false },
-  { desc: 'Gym & Spa Annual Membership', amount: 89, category: 'Health & Wellness', recurring: true, monthly: 89 },
-  { desc: 'Weekend Flight to Aspen', amount: 480, category: 'Transportation', recurring: false },
-  { desc: 'High-End Espresso Machine', amount: 650, category: 'Groceries & Dining', recurring: false }
+  { desc: 'Apple iPhone 16 Pro', amount: 119900, category: 'Shopping & Gear', recurring: false },
+  { desc: 'Cult.fit Annual Gym Pass', amount: 14500, category: 'Health & Wellness', recurring: true, monthly: 1200 },
+  { desc: 'Goa Weekend Getaway', amount: 18000, category: 'Transportation', recurring: false },
+  { desc: 'Bose QuietComfort Headphones', amount: 35900, category: 'Entertainment & Tech', recurring: false }
 ];
 
 export function WhatIfSimulatorModal({ isOpen, onClose, onCommitPlannedPurchase }) {
-  const [description, setDescription] = useState('Apple MacBook Pro M3');
-  const [amount, setAmount] = useState(1499);
+  const [description, setDescription] = useState('Apple iPhone 16 Pro');
+  const [amount, setAmount] = useState(119900);
   const [category, setCategory] = useState('Shopping & Gear');
   const [isRecurring, setIsRecurring] = useState(false);
-  const [recurringMonthly, setRecurringMonthly] = useState(125);
+  const [recurringMonthly, setRecurringMonthly] = useState(9990);
   const [simulation, setSimulation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -136,7 +136,7 @@ export function WhatIfSimulatorModal({ isOpen, onClose, onCommitPlannedPurchase 
                 <span className="badge badge-violet">Aura Predictive Engine</span>
               </h3>
               <p style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                Test potential purchases and financing plans before spending a single dollar
+                Test potential purchases and financing plans before spending your hard-earned rupees
               </p>
             </div>
           </div>
@@ -176,7 +176,7 @@ export function WhatIfSimulatorModal({ isOpen, onClose, onCommitPlannedPurchase 
                   cursor: 'pointer'
                 }}
               >
-                {p.desc} (${p.amount})
+                {p.desc} (₹{p.amount.toLocaleString('en-IN')})
               </button>
             ))}
           </div>
@@ -237,11 +237,11 @@ export function WhatIfSimulatorModal({ isOpen, onClose, onCommitPlannedPurchase 
 
           <div>
             <label style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '5px' }}>
-              {isRecurring ? 'Monthly Installment ($)' : 'Total Lump-Sum Price ($)'}
+              {isRecurring ? 'Monthly Installment (₹)' : 'Total Lump-Sum Price (₹)'}
             </label>
             <input
               type="number"
-              step="10"
+              step="100"
               value={isRecurring ? recurringMonthly : amount}
               onChange={(e) => isRecurring ? setRecurringMonthly(e.target.value) : setAmount(e.target.value)}
               style={{
@@ -335,14 +335,14 @@ export function WhatIfSimulatorModal({ isOpen, onClose, onCommitPlannedPurchase 
               <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase' }}>Daily Safe-to-Spend</span>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', margin: '6px 0' }}>
                 <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#38bdf8' }}>
-                  ${simulation.simulated.safeToSpendDaily.toFixed(2)}
+                  ₹{simulation.simulated.safeToSpendDaily.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                 </span>
                 <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                  from ${simulation.baseline.safeToSpendDaily.toFixed(2)}
+                  from ₹{simulation.baseline.safeToSpendDaily.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
                 </span>
               </div>
               <div style={{ fontSize: '0.72rem', color: simulation.difference.safeBufferDrop > 0 ? '#fb7185' : '#34d399' }}>
-                {simulation.difference.safeBufferDrop > 0 ? `-$${simulation.difference.safeBufferDrop.toFixed(2)}/day buffer reduction` : 'No buffer change'}
+                {simulation.difference.safeBufferDrop > 0 ? `-₹${simulation.difference.safeBufferDrop.toFixed(0)}/day buffer reduction` : 'No buffer change'}
               </div>
             </div>
 
@@ -372,7 +372,7 @@ export function WhatIfSimulatorModal({ isOpen, onClose, onCommitPlannedPurchase 
                   {simulation.simulated.categoryPercent}%
                 </span>
                 <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                  (${simulation.simulated.categorySpend.toFixed(0)} / ${simulation.simulated.categoryLimit})
+                  (₹{simulation.simulated.categorySpend.toLocaleString('en-IN', { maximumFractionDigits: 0 })} / ₹{simulation.simulated.categoryLimit.toLocaleString('en-IN')})
                 </span>
               </div>
               <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
@@ -396,7 +396,7 @@ export function WhatIfSimulatorModal({ isOpen, onClose, onCommitPlannedPurchase 
             onClick={handleCommitToDatabase}
             style={{ fontSize: '0.85rem' }}
           >
-            <CheckCircle size={16} /> Save as Planned Transaction in MySQL Vault
+            <CheckCircle size={16} /> Save as Planned Transaction in Database
           </button>
         </div>
       </div>

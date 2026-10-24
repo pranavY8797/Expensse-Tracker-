@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Shield, Lock, Mail, User, ArrowRight, CheckCircle2, AlertCircle, Database } from 'lucide-react';
+import { Shield, Lock, Mail, User, ArrowRight, CheckCircle2, AlertCircle, Database, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-export function AuthView({ onLoginSuccess }) {
-  const [isRegister, setIsRegister] = useState(false);
+export function AuthView({ onLoginSuccess, initialIsRegister = false, onClose }) {
+  const [isRegister, setIsRegister] = useState(initialIsRegister);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,12 +38,16 @@ export function AuthView({ onLoginSuccess }) {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      position: onClose ? 'fixed' : 'relative',
+      inset: onClose ? 0 : 'auto',
+      zIndex: onClose ? 1000 : 'auto',
+      background: onClose ? 'rgba(5, 7, 15, 0.85)' : 'transparent',
+      backdropFilter: onClose ? 'blur(16px)' : 'none',
+      minHeight: onClose ? '100vh' : '100vh',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '24px',
-      position: 'relative'
+      padding: '24px'
     }}>
       <div
         className="glass-panel"
@@ -53,9 +57,32 @@ export function AuthView({ onLoginSuccess }) {
           padding: '36px 32px',
           border: '1px solid rgba(16, 185, 129, 0.3)',
           boxShadow: '0 25px 60px rgba(0, 0, 0, 0.7)',
-          animation: 'fadeIn 0.3s ease'
+          animation: 'fadeIn 0.3s ease',
+          position: 'relative'
         }}
       >
+        {onClose && (
+          <button
+            onClick={onClose}
+            style={{
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '8px',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              padding: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            title="Close"
+          >
+            <X size={18} />
+          </button>
+        )}
         {/* Logo and Brand */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <div style={{

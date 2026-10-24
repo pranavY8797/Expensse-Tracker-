@@ -3,7 +3,7 @@ import React, { useRef, useEffect } from 'react';
 /**
  * Donut Spending Breakdown Chart with canvas glowing arcs
  */
-export function DonutChart({ data = [], total = 0, currency = '$' }) {
+export function DonutChart({ data = [], total = 0, currency = '₹' }) {
   const canvasRef = useRef(null);
 
   const colors = [
@@ -77,7 +77,7 @@ export function DonutChart({ data = [], total = 0, currency = '$' }) {
         }}>
           <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Spent</span>
           <div className="sensitive-value" style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f8fafc' }}>
-            {currency}{total.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            {currency}{total.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </div>
         </div>
       </div>

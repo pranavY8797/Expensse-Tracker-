@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Repeat, ArrowUpRight, ArrowDownRight, Sparkles, Clock, CheckCircle } from 'lucide-react';
 
-export function CashflowCalendarView({ currency = '$', onOpenQuickAdd }) {
+export function CashflowCalendarView({ currency = '₹', onOpenQuickAdd }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [calendarData, setCalendarData] = useState(null);
   const [selectedDayData, setSelectedDayData] = useState(null);

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { LandingPage } from './components/LandingPage';
 import { AuthView } from './components/AuthView';
 import { QuickAddModal } from './components/QuickAddModal';
 import { SqlExplorerModal } from './components/SqlExplorerModal';
@@ -22,8 +23,7 @@ import {
   Wallet,
   Search,
   Filter,
-  CheckCircle2,
-  DollarSign
+  CheckCircle2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -37,6 +37,10 @@ export function App() {
       return null;
     }
   });
+
+  // Landing page auth modal state
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authIsRegister, setAuthIsRegister] = useState(false);
 
   // Active View Tab: 'ledger' | 'calendar'
   const [activeTab, setActiveTab] = useState('ledger');
@@ -146,9 +150,26 @@ export function App() {
     }
   };
 
-  // If user is not signed in, show clean Auth screen
+  // If user is not signed in, show attractive landing page with interactive auth modal
   if (!currentUser) {
-    return <AuthView onLoginSuccess={handleLoginSuccess} />;
+    return (
+      <>
+        <LandingPage onOpenAuth={(isRegister) => {
+          setAuthIsRegister(Boolean(isRegister));
+          setIsAuthModalOpen(true);
+        }} />
+        {isAuthModalOpen && (
+          <AuthView
+            initialIsRegister={authIsRegister}
+            onLoginSuccess={(user) => {
+              setIsAuthModalOpen(false);
+              handleLoginSuccess(user);
+            }}
+            onClose={() => setIsAuthModalOpen(false)}
+          />
+        )}
+      </>
+    );
   }
 
   // Calculations
@@ -207,11 +228,11 @@ export function App() {
                 SafeSpend<span style={{ color: '#10b981' }}>.AI</span>
               </span>
               <span className="badge badge-emerald" style={{ fontSize: '0.68rem' }}>
-                MySQL 8.0 Vault
+                MySQL 8.0 Secure
               </span>
             </div>
             <p style={{ fontSize: '0.72rem', color: '#64748b' }}>
-              Zero Fake Data • Direct MySQL Storage
+              Zero Fake Data • Direct MySQL Storage • ₹ INR
             </p>
           </div>
         </div>
@@ -234,11 +255,11 @@ export function App() {
           <button
             className="btn btn-secondary"
             onClick={() => setIsSqlExplorerOpen(true)}
-            title="View Real Database Tables in MySQL"
+            title="View Real Database Records in MySQL"
             style={{ padding: '6px 12px', fontSize: '0.78rem' }}
           >
             <Database size={15} color="#06b6d4" />
-            <span>MySQL Explorer</span>
+            <span>My Database Records</span>
           </button>
 
           <button
@@ -263,7 +284,7 @@ export function App() {
               Net Balance
             </span>
             <div className="sensitive-value" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f8fafc', margin: '6px 0' }}>
-              ${netBalance.toFixed(2)}
+              ₹{netBalance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
               Current cashflow delta
@@ -276,7 +297,7 @@ export function App() {
               Total Income
             </span>
             <div className="sensitive-value" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#34d399', margin: '6px 0' }}>
-              +${totalIncome.toFixed(2)}
+              +₹{totalIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
               {transactions.filter(t => t.type === 'income').length} deposits recorded
@@ -289,7 +310,7 @@ export function App() {
               Total Spent
             </span>
             <div className="sensitive-value" style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f43f5e', margin: '6px 0' }}>
-              -${totalExpense.toFixed(2)}
+              -₹{totalExpense.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
               {transactions.filter(t => t.type === 'expense').length} purchases recorded
@@ -303,7 +324,7 @@ export function App() {
             <div style={{ flex: 1, position: 'relative' }}>
               <input
                 type="text"
-                placeholder="Log with AI in plain English: 'Dinner at Subway $12.50' or 'Gas 40 bucks' or 'Got paid 3000 salary'..."
+                placeholder="Log with AI in plain English or Hindi: 'Auto rickshaw ₹60' or 'Dinner at Swiggy ₹450' or 'Zepto ₹320' or 'Salary 50000'..."
                 value={inlinePrompt}
                 onChange={(e) => setInlinePrompt(e.target.value)}
                 style={{
@@ -541,7 +562,7 @@ export function App() {
                           fontWeight: 700,
                           color: isExpense ? '#f43f5e' : '#34d399'
                         }}>
-                          {isExpense ? '-' : '+'}${tx.amount.toFixed(2)}
+                          {isExpense ? '-' : '+'}₹{tx.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </span>
 
                         <button
@@ -569,11 +590,32 @@ export function App() {
         {/* TAB 2: CALENDAR VIEW */}
         {activeTab === 'calendar' && (
           <CashflowCalendarView
-            currency="$"
+            currency="₹"
             onOpenQuickAdd={() => setIsQuickAddOpen(true)}
           />
         )}
       </main>
+
+      {/* Sleek App Footer */}
+      <footer style={{
+        textAlign: 'center',
+        padding: '24px 20px',
+        borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+        background: 'rgba(7, 10, 20, 0.9)',
+        color: '#64748b',
+        fontSize: '0.78rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '6px' }}>
+          <span style={{ fontWeight: 700, color: '#f8fafc' }}>SafeSpend.AI</span>
+          <span>•</span>
+          <span style={{ color: '#10b981' }}>Local MySQL 8.0 Protected</span>
+          <span>•</span>
+          <span>₹ Indian Rupee Edition</span>
+        </div>
+        <p style={{ margin: 0, color: '#475569' }}>
+          All data encrypted and stored on your local MySQL server at localhost:3306. Zero cloud telemetry.
+        </p>
+      </footer>
 
       {/* MODALS */}
       <QuickAddModal
