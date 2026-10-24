@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { LandingPage } from './components/LandingPage';
 import { AuthView } from './components/AuthView';
 import { QuickAddModal } from './components/QuickAddModal';
-import { SqlExplorerModal } from './components/SqlExplorerModal';
 import { AuraAdvisorDrawer } from './components/AuraAdvisorDrawer';
 import { CsvImporterModal } from './components/CsvImporterModal';
 import { WhatIfSimulatorModal } from './components/WhatIfSimulatorModal';
@@ -14,7 +13,6 @@ import {
   Eye,
   EyeOff,
   LogOut,
-  Database,
   Calendar,
   Sparkles,
   FileSpreadsheet,
@@ -53,7 +51,6 @@ export function App() {
 
   // Modals
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-  const [isSqlExplorerOpen, setIsSqlExplorerOpen] = useState(false);
   const [isAuraOpen, setIsAuraOpen] = useState(false);
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [isWhatIfModalOpen, setIsWhatIfModalOpen] = useState(false);
@@ -243,6 +240,17 @@ export function App() {
             👤 {currentUser.name}
           </span>
 
+          {/* Prominent Add New Entry Button */}
+          <button
+            className="btn btn-primary"
+            onClick={() => setIsQuickAddOpen(true)}
+            style={{ padding: '8px 16px', fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 0 15px rgba(16, 185, 129, 0.4)' }}
+            title="Click here to add an expense or income"
+          >
+            <Plus size={16} strokeWidth={2.5} />
+            <span>+ Add New Entry</span>
+          </button>
+
           <button
             className="btn btn-secondary"
             onClick={() => setDiscreetMode(!discreetMode)}
@@ -250,16 +258,6 @@ export function App() {
             style={{ padding: '6px 10px', fontSize: '0.78rem' }}
           >
             {discreetMode ? <EyeOff size={15} color="#fbbf24" /> : <Eye size={15} />}
-          </button>
-
-          <button
-            className="btn btn-secondary"
-            onClick={() => setIsSqlExplorerOpen(true)}
-            title="View Real Database Records in MySQL"
-            style={{ padding: '6px 12px', fontSize: '0.78rem' }}
-          >
-            <Database size={15} color="#06b6d4" />
-            <span>My Database Records</span>
           </button>
 
           <button
@@ -318,13 +316,32 @@ export function App() {
           </div>
         </div>
 
-        {/* Big Prominent Fast Add Input Bar */}
-        <div className="glass-panel" style={{ padding: '18px 20px', marginBottom: '24px', border: '1px solid rgba(16, 185, 129, 0.35)' }}>
+        {/* Dedicated "Add New Entry" Section */}
+        <div className="glass-panel" style={{ padding: '20px 24px', marginBottom: '24px', border: '1px solid rgba(16, 185, 129, 0.4)', background: 'rgba(6, 12, 24, 0.85)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.98rem', fontWeight: 700, color: '#f8fafc' }}>
+                ✍️ Add New Entry
+              </span>
+              <span className="badge badge-emerald" style={{ fontSize: '0.68rem' }}>
+                Quick & Direct
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setIsQuickAddOpen(true)}
+              style={{ padding: '6px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Plus size={14} /> Open Full Form (+ Details)
+            </button>
+          </div>
+
           <form onSubmit={handleQuickInlineLog} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <div style={{ flex: 1, position: 'relative' }}>
               <input
                 type="text"
-                placeholder="Log with AI in plain English or Hindi: 'Auto rickshaw ₹60' or 'Dinner at Swiggy ₹450' or 'Zepto ₹320' or 'Salary 50000'..."
+                placeholder="Type your entry naturally: e.g. 'Swiggy ₹350' or 'Auto ₹60' or 'Zepto ₹250' or 'Salary 45000'..."
                 value={inlinePrompt}
                 onChange={(e) => setInlinePrompt(e.target.value)}
                 style={{
@@ -344,22 +361,42 @@ export function App() {
               type="submit"
               className="btn btn-primary"
               disabled={isExtracting || !inlinePrompt.trim()}
-              style={{ padding: '12px 20px', fontSize: '0.88rem' }}
+              style={{ padding: '12px 22px', fontSize: '0.88rem' }}
             >
               <Sparkles size={16} />
-              {isExtracting ? 'Saving to MySQL...' : 'Log with AI'}
-            </button>
-
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setIsQuickAddOpen(true)}
-              title="Open full manual form or receipt scanner"
-              style={{ padding: '12px 16px', fontSize: '0.88rem' }}
-            >
-              <Plus size={16} /> Full Form
+              {isExtracting ? 'Saving...' : 'Add Entry (↵)'}
             </button>
           </form>
+
+          {/* Quick Clickable Suggestions */}
+          <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Try typing:</span>
+            {[
+              'Dinner on Swiggy ₹450 with UPI',
+              'Auto to station ₹60',
+              'Zepto groceries ₹320',
+              'Coffee ₹120 via GPay',
+              'Petrol ₹500 at IOCL',
+              'Salary ₹50000 deposited'
+            ].map((eg, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setInlinePrompt(eg)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '6px',
+                  padding: '3px 8px',
+                  fontSize: '0.72rem',
+                  color: '#94a3b8',
+                  cursor: 'pointer'
+                }}
+              >
+                + {eg}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Clean Tools & View Bar */}
@@ -405,6 +442,15 @@ export function App() {
           {/* Quick Action Buttons */}
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
+              className="btn btn-primary"
+              onClick={() => setIsQuickAddOpen(true)}
+              style={{ padding: '6px 14px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '5px' }}
+            >
+              <Plus size={14} />
+              <span>+ New Entry</span>
+            </button>
+
+            <button
               className="btn btn-secondary"
               onClick={() => setIsCsvModalOpen(true)}
               style={{ padding: '6px 12px', fontSize: '0.78rem' }}
@@ -440,7 +486,7 @@ export function App() {
             {transactions.length > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <span style={{ fontSize: '0.82rem', color: '#94a3b8', fontWeight: 600 }}>
-                  Showing {filteredTransactions.length} of {transactions.length} records in MySQL
+                  Showing {filteredTransactions.length} of {transactions.length} entries
                 </span>
                 <div style={{ position: 'relative' }}>
                   <Search size={14} color="#64748b" style={{ position: 'absolute', left: '10px', top: '9px' }} />
@@ -484,14 +530,14 @@ export function App() {
                   Your Ledger is Clean & Ready
                 </h4>
                 <p style={{ fontSize: '0.84rem', color: '#94a3b8', maxWidth: '420px', margin: '0 auto 20px auto', lineHeight: '1.5' }}>
-                  No fake or demo data. Enter your real expenses using the quick AI bar above, or click below to fill the manual form.
+                  No fake or demo data. Click below to add your first expense or income entry, or type directly in the box above!
                 </p>
                 <button
                   className="btn btn-primary"
                   onClick={() => setIsQuickAddOpen(true)}
-                  style={{ padding: '10px 20px', fontSize: '0.88rem' }}
+                  style={{ padding: '12px 24px', fontSize: '0.92rem', boxShadow: '0 0 20px rgba(16, 185, 129, 0.35)' }}
                 >
-                  <Plus size={16} /> Log Your First Real Expense
+                  <Plus size={18} /> + Add Your First Entry Now
                 </button>
               </div>
             ) : filteredTransactions.length === 0 ? (
@@ -634,11 +680,6 @@ export function App() {
         isOpen={isWhatIfModalOpen}
         onClose={() => setIsWhatIfModalOpen(false)}
         onCommitPlannedPurchase={fetchUserData}
-      />
-
-      <SqlExplorerModal
-        isOpen={isSqlExplorerOpen}
-        onClose={() => setIsSqlExplorerOpen(false)}
       />
 
       <AuraAdvisorDrawer

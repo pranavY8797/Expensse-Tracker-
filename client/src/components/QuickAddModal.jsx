@@ -41,7 +41,7 @@ PAYMENT: GOOGLE PAY UPI`
 ];
 
 export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
-  const [activeTab, setActiveTab] = useState('nlp'); // 'nlp' | 'receipt' | 'manual'
+  const [activeTab, setActiveTab] = useState('manual'); // 'manual' | 'nlp' | 'receipt'
   
   // NLP state
   const [nlpPrompt, setNlpPrompt] = useState('');
@@ -186,6 +186,9 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
       });
       const saved = await res.json();
       confetti({ particleCount: 30, spread: 50, origin: { y: 0.7 } });
+      setManualAmount('');
+      setManualMerchant('');
+      setManualNotes('');
       onTransactionCreated(saved);
       onClose();
     } catch (err) {
@@ -213,10 +216,10 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div>
             <h3 style={{ fontSize: '1.35rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sparkles size={20} color="#10b981" /> Smart Expense Logger
+              <Plus size={22} color="#10b981" /> Add New Entry (₹)
             </h3>
             <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
-              Natural language AI extraction, receipt scanner, or manual SQL entry
+              Enter an expense or income to record in your tracker
             </p>
           </div>
           <button
@@ -245,6 +248,28 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
           border: '1px solid rgba(255,255,255,0.06)'
         }}>
           <button
+            onClick={() => setActiveTab('manual')}
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '9px 12px',
+              borderRadius: '9px',
+              border: 'none',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'var(--transition)',
+              background: activeTab === 'manual' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'transparent',
+              color: activeTab === 'manual' ? '#ffffff' : '#94a3b8'
+            }}
+          >
+            <PenLine size={15} /> 📝 Simple Form
+          </button>
+
+          <button
             onClick={() => setActiveTab('nlp')}
             style={{
               flex: 1,
@@ -259,11 +284,11 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
               fontWeight: 600,
               cursor: 'pointer',
               transition: 'var(--transition)',
-              background: activeTab === 'nlp' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'transparent',
+              background: activeTab === 'nlp' ? 'linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)' : 'transparent',
               color: activeTab === 'nlp' ? '#ffffff' : '#94a3b8'
             }}
           >
-            <Sparkles size={15} /> Magic AI Log
+            <Sparkles size={15} /> ✨ Natural Language (AI)
           </button>
 
           <button
@@ -288,29 +313,7 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
               color: activeTab === 'receipt' ? '#ffffff' : '#94a3b8'
             }}
           >
-            <Receipt size={15} /> Smart Receipt Scan
-          </button>
-
-          <button
-            onClick={() => setActiveTab('manual')}
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              padding: '9px 12px',
-              borderRadius: '9px',
-              border: 'none',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'var(--transition)',
-              background: activeTab === 'manual' ? 'rgba(255,255,255,0.12)' : 'transparent',
-              color: activeTab === 'manual' ? '#ffffff' : '#94a3b8'
-            }}
-          >
-            <PenLine size={15} /> Manual Entry
+            <Receipt size={15} /> 🧾 Receipt Scan
           </button>
         </div>
 
@@ -635,22 +638,24 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
                     fontSize: '0.85rem'
                   }}
                 >
-                  <option value="Groceries & Dining">Groceries & Dining</option>
-                  <option value="Housing & Utilities">Housing & Utilities</option>
-                  <option value="Transportation">Transportation</option>
-                  <option value="Entertainment & Tech">Entertainment & Tech</option>
-                  <option value="Health & Wellness">Health & Wellness</option>
-                  <option value="Shopping & Gear">Shopping & Gear</option>
-                  <option value="Salary & Earnings">Salary & Earnings</option>
-                  <option value="Freelance & Side Gig">Freelance & Side Gig</option>
+                  <option value="Food & Dining">Food & Dining (Swiggy, Zomato, Dine-in)</option>
+                  <option value="Groceries">Groceries (Zepto, Blinkit, D-Mart, Kirana)</option>
+                  <option value="Transportation">Transportation (Auto, Cab, Metro, Petrol)</option>
+                  <option value="Housing & Utilities">Housing & Bills (Rent, Bijli, Wifi, Gas)</option>
+                  <option value="Shopping & Gear">Shopping (Amazon, Flipkart, Apparel)</option>
+                  <option value="Health & Wellness">Health & Medical (Pharmacy, Gym)</option>
+                  <option value="Entertainment & Tech">Entertainment & OTT (Netflix, Prime)</option>
+                  <option value="Salary & Earnings">Salary & Earnings (Paycheck)</option>
+                  <option value="Freelance & Side Gig">Freelance & Business Revenue</option>
+                  <option value="Other">Other Expenses</option>
                 </select>
               </div>
 
               <div>
-                <label style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '5px' }}>Merchant / Vendor</label>
+                <label style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '5px' }}>Where / For What?</label>
                 <input
                   type="text"
-                  placeholder="e.g. Trader Joe's"
+                  placeholder="e.g. Swiggy, Zepto, Auto, Salary, D-Mart"
                   value={manualMerchant}
                   onChange={(e) => setManualMerchant(e.target.value)}
                   style={{
@@ -698,11 +703,10 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
                     fontSize: '0.85rem'
                   }}
                 >
-                  <option value="Card">Card</option>
-                  <option value="Apple Pay">Apple Pay</option>
+                  <option value="UPI">UPI (GPay / PhonePe / Paytm)</option>
                   <option value="Cash">Cash</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="Crypto">Crypto</option>
+                  <option value="Card">Debit / Credit Card</option>
+                  <option value="Net Banking">Net Banking / IMPS</option>
                 </select>
               </div>
             </div>
@@ -711,7 +715,7 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
               <label style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '5px' }}>Notes</label>
               <input
                 type="text"
-                placeholder="Optional memo or description"
+                placeholder="Optional memo or notes"
                 value={manualNotes}
                 onChange={(e) => setManualNotes(e.target.value)}
                 style={{
@@ -743,8 +747,8 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
               <button type="button" className="btn btn-secondary" onClick={onClose} style={{ fontSize: '0.82rem' }}>
                 Cancel
               </button>
-              <button type="submit" className="btn btn-primary" style={{ fontSize: '0.85rem' }}>
-                <Check size={16} /> Save to SQL Vault
+              <button type="submit" className="btn btn-primary" style={{ fontSize: '0.88rem', padding: '10px 22px' }}>
+                <Check size={16} /> + Add Entry Now
               </button>
             </div>
           </form>
