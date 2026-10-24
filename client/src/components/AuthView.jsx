@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, Lock, Mail, User, ArrowRight, CheckCircle2, AlertCircle, Database, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -9,6 +9,10 @@ export function AuthView({ onLoginSuccess, initialIsRegister = false, onClose })
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+
+  useEffect(() => {
+    setIsRegister(initialIsRegister);
+  }, [initialIsRegister]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

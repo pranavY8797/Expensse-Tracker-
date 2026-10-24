@@ -301,8 +301,8 @@ export function LandingPage({ onOpenAuth }) {
         </div>
       </section>
 
-      {/* 5. Modern Footer */}
-      <footer style={{
+      {/* 5. Modern Footer & Security Guarantee */}
+      <footer id="security" style={{
         marginTop: 'auto',
         background: 'rgba(4, 7, 15, 0.95)',
         borderTop: '1px solid rgba(255, 255, 255, 0.08)',

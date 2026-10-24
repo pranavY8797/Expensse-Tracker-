@@ -289,10 +289,10 @@ export async function generateAuraInsights(db, userId = 1) {
   }
 
   // 2. Safe to Spend Today
-  const monthlyTarget = parseFloat(profile.monthly_income_target || 6500);
-  const effectiveMonthlyBudget = Math.max(monthlyTarget * 0.75, totalExpenseMonth + 800);
+  const monthlyTarget = parseFloat(user.monthly_income_target || 65000);
+  const effectiveMonthlyBudget = Math.max(monthlyTarget * 0.75, totalExpenseMonth + 8000);
   const remainingBudget = Math.max(0, effectiveMonthlyBudget - totalExpenseMonth);
-  const safeToSpendDaily = Math.max(15, Math.round((remainingBudget / daysRemaining) * 100) / 100);
+  const safeToSpendDaily = Math.max(150, Math.round((remainingBudget / daysRemaining) * 100) / 100);
 
   // 3. Financial Health Score (0 - 100)
   let healthScore = 82;
@@ -355,33 +355,33 @@ export async function askAuraAdvisor(question, db, userId = 1) {
 
   const topCategories = Object.entries(summary.categorySpend)
     .sort((a, b) => b[1] - a[1])
-    .map(([cat, amt]) => `${cat}: $${amt.toFixed(2)}`);
+    .map(([cat, amt]) => `${cat}: ₹${amt.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`);
 
   if (q.includes('safe to spend') || q.includes('how much can i spend') || q.includes('daily')) {
     return {
-      answer: `Based on your remaining monthly forecast, your **Safe-to-Spend allowance is $${summary.safeToSpendDaily.toFixed(2)} per day** for the remaining ${summary.daysRemaining} days of this month. Spending below this keeps your savings goal intact!`,
+      answer: `Based on your remaining monthly forecast, your **Safe-to-Spend allowance is ₹${summary.safeToSpendDaily.toLocaleString('en-IN', { maximumFractionDigits: 0 })} per day** for the remaining ${summary.daysRemaining} days of this month. Spending below this keeps your savings goal intact!`,
       metrics: { safeToSpendDaily: summary.safeToSpendDaily }
     };
   }
 
   if (q.includes('mysql') || q.includes('database') || q.includes('table')) {
     return {
-      answer: `Your records are live in **MySQL 8.0** under database **\`safespend_vault\`**! You can open your command prompt, run \`mysql -u root -proot\`, and type \`SELECT * FROM safespend_vault.transactions;\` to see your real ledger records in real time.`,
+      answer: `Your records are securely stored in **MySQL 8.0** under database **\`safespend_vault\`**! Each user has their own private ledger with zero cloud tracking.`,
       dbType: 'MySQL 8.0'
     };
   }
 
   if (q.includes('afford') || q.includes('can i buy')) {
     const numMatch = q.match(/([0-9]+(?:\.[0-9]{1,2})?)/);
-    const cost = numMatch ? parseFloat(numMatch[1]) : 150;
+    const cost = numMatch ? parseFloat(numMatch[1]) : 1500;
     if (cost <= summary.safeToSpendDaily * 2) {
       return {
-        answer: `Yes! A purchase of **$${cost.toFixed(2)}** fits well within your current cashflow. It accounts for about ${(cost / summary.safeToSpendDaily).toFixed(1)} days of your daily discretionary buffer. Proceed with confidence!`,
+        answer: `Yes! A purchase of **₹${cost.toLocaleString('en-IN')}** fits well within your current cashflow. It accounts for about ${(cost / summary.safeToSpendDaily).toFixed(1)} days of your daily discretionary buffer. Proceed with confidence!`,
         recommended: true
       };
     } else {
       return {
-        answer: `A purchase of **$${cost.toFixed(2)}** exceeds your typical single-day buffer ($${summary.safeToSpendDaily.toFixed(2)}/day). Consider offsetting it by reducing discretionary dining by ~$${(cost * 0.4).toFixed(0)} over the next week.`,
+        answer: `A purchase of **₹${cost.toLocaleString('en-IN')}** exceeds your typical single-day buffer (₹${summary.safeToSpendDaily.toLocaleString('en-IN', { maximumFractionDigits: 0 })}/day). Consider offsetting it by pacing non-essential dining and shopping over the next week.`,
         recommended: false
       };
     }
@@ -389,7 +389,7 @@ export async function askAuraAdvisor(question, db, userId = 1) {
 
   if (q.includes('subscription') || q.includes('recurring') || q.includes('netflix') || q.includes('bills')) {
     return {
-      answer: `You currently have **$${summary.totalMonthlySubs.toFixed(2)}/month** committed across active subscriptions. Tip: Audit services you haven't used in 30 days to reclaim funds.`,
+      answer: `You currently have **₹${summary.totalMonthlySubs.toLocaleString('en-IN', { maximumFractionDigits: 0 })}/month** committed across active subscriptions. Tip: Audit services you haven't used in 30 days to reclaim funds.`,
       metrics: { subscriptions: summary.totalMonthlySubs }
     };
   }
@@ -397,13 +397,13 @@ export async function askAuraAdvisor(question, db, userId = 1) {
   if (q.includes('cut') || q.includes('save') || q.includes('reduce')) {
     const highest = topCategories[0] || 'Groceries & Dining';
     return {
-      answer: `Your largest spending category this month is **${highest}**. Focusing on meal prepping and pausing 1 unused recurring membership can easily reclaim **$180–$250/month**.`,
+      answer: `Your largest spending category this month is **${highest}**. Cooking at home and checking daily UPI micro-spends can easily save you **₹2,000–₹5,000/month**.`,
       highestCategory: highest
     };
   }
 
   return {
-    answer: `Here is your current financial pulse: You have spent **$${summary.totalExpenseMonth.toFixed(2)}** against **$${summary.totalIncomeMonth.toFixed(2)}** recorded income this month. Your top category is **${topCategories[0] || 'Housing'}**, and your daily safe buffer is **$${summary.safeToSpendDaily.toFixed(2)}**. How else can I guide your finances today?`,
+    answer: `Here is your current financial pulse: You have spent **₹${summary.totalExpenseMonth.toLocaleString('en-IN', { maximumFractionDigits: 0 })}** against **₹${summary.totalIncomeMonth.toLocaleString('en-IN', { maximumFractionDigits: 0 })}** recorded income this month. Your top category is **${topCategories[0] || 'Food & Dining'}**, and your daily safe buffer is **₹${summary.safeToSpendDaily.toLocaleString('en-IN', { maximumFractionDigits: 0 })}/day**. How else can I assist your financial journey?`,
     summary
   };
 }
@@ -550,11 +550,11 @@ export async function simulateWhatIfScenario(scenario, db, userId = 1) {
 
   // New simulated totals
   const simulatedMonthlyExpense = baseline.totalExpenseMonth + effectiveExpense;
-  const monthlyTarget = parseFloat(profile.monthly_income_target || 6500);
+  const monthlyTarget = parseFloat(user.monthly_income_target || 65000);
 
   // Recalculate daily Safe-to-Spend
   const daysRemaining = baseline.daysRemaining || 10;
-  const effectiveBudget = Math.max(monthlyTarget * 0.75, simulatedMonthlyExpense + 500);
+  const effectiveBudget = Math.max(monthlyTarget * 0.75, simulatedMonthlyExpense + 5000);
   const remainingBudget = Math.max(0, effectiveBudget - simulatedMonthlyExpense);
   const simulatedDailySafe = Math.max(0, Math.round((remainingBudget / daysRemaining) * 100) / 100);
 
@@ -581,18 +581,18 @@ export async function simulateWhatIfScenario(scenario, db, userId = 1) {
   let verdictTitle = 'Safe to Proceed';
   let verdictMessage = '';
 
-  if (simulatedDailySafe >= 25 && simulatedScore >= 75 && categoryRatio <= 1.1) {
+  if (simulatedDailySafe >= 250 && simulatedScore >= 75 && categoryRatio <= 1.1) {
     verdictType = 'APPROVED';
     verdictTitle = 'Financial Green Light';
-    verdictMessage = `Your cashflow comfortably absorbs this $${amt.toFixed(2)} purchase. Your Daily Safe-to-Spend remains steady at $${simulatedDailySafe.toFixed(2)}/day with an optimal Health Score of ${simulatedScore}.`;
-  } else if (simulatedDailySafe >= 10 && categoryRatio <= 1.4) {
+    verdictMessage = `Your cashflow comfortably absorbs this ₹${amt.toLocaleString('en-IN')} purchase. Your Daily Safe-to-Spend remains steady at ₹${simulatedDailySafe.toLocaleString('en-IN', { maximumFractionDigits: 0 })}/day with an optimal Health Score of ${simulatedScore}.`;
+  } else if (simulatedDailySafe >= 100 && categoryRatio <= 1.4) {
     verdictType = 'CAUTION';
     verdictTitle = 'Manageable with Adjustments';
-    verdictMessage = `This purchase reduces your daily discretionary buffer by $${(baseline.safeToSpendDaily - simulatedDailySafe).toFixed(2)}/day (down to $${simulatedDailySafe.toFixed(2)}/day). We recommend trimming dining out by ~$${(effectiveExpense * 0.3).toFixed(0)} over the next two weeks.`;
+    verdictMessage = `This purchase reduces your daily discretionary buffer by ₹${Math.abs(baseline.safeToSpendDaily - simulatedDailySafe).toLocaleString('en-IN', { maximumFractionDigits: 0 })}/day (down to ₹${simulatedDailySafe.toLocaleString('en-IN', { maximumFractionDigits: 0 })}/day). We recommend trimming dining out by ~₹${(effectiveExpense * 0.3).toFixed(0)} over the next two weeks.`;
   } else {
     verdictType = 'STRESSED';
     verdictTitle = 'Cashflow Pressure Warning';
-    verdictMessage = `Warning: Spending $${amt.toFixed(2)} pushes your ${category} spending to ${Math.round(categoryRatio * 100)}% of budget and drops your daily buffer to $${simulatedDailySafe.toFixed(2)}/day. Consider postponing or financing over a longer period.`;
+    verdictMessage = `Warning: Spending ₹${amt.toLocaleString('en-IN')} pushes your ${category} spending to ${Math.round(categoryRatio * 100)}% of budget and drops your daily buffer to ₹${simulatedDailySafe.toLocaleString('en-IN', { maximumFractionDigits: 0 })}/day. Consider postponing or financing over a longer period.`;
   }
 
   return {
