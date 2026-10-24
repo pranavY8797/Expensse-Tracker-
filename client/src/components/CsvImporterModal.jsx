@@ -94,9 +94,13 @@ export function CsvImporterModal({ isOpen, onClose, onImportComplete }) {
     setIsCommitting(true);
     try {
       const selectedRows = parsedData.rows.filter((_, idx) => selectedIndices.has(idx));
+      const user = JSON.parse(localStorage.getItem('safespend_user') || '{}');
       const res = await fetch('/api/import/batch-commit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': String(user.id || 1)
+        },
         body: JSON.stringify({ transactions: selectedRows })
       });
       const data = await res.json();

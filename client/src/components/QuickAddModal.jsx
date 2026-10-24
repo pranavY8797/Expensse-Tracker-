@@ -115,13 +115,25 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
     }
   };
 
+  const getAuthHeaders = () => {
+    try {
+      const u = JSON.parse(localStorage.getItem('safespend_user') || '{}');
+      return {
+        'Content-Type': 'application/json',
+        'x-user-id': String(u.id || 1)
+      };
+    } catch (e) {
+      return { 'Content-Type': 'application/json' };
+    }
+  };
+
   // Save parsed NLP transaction
   const handleConfirmNLP = async () => {
     if (!parsedResult) return;
     try {
       const res = await fetch('/api/transactions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(parsedResult)
       });
       const saved = await res.json();
@@ -150,7 +162,7 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
       };
       const res = await fetch('/api/transactions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       });
       const saved = await res.json();
@@ -180,7 +192,7 @@ export function QuickAddModal({ isOpen, onClose, onTransactionCreated }) {
       };
       const res = await fetch('/api/transactions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       });
       const saved = await res.json();

@@ -69,9 +69,13 @@ export function WhatIfSimulatorModal({ isOpen, onClose, onCommitPlannedPurchase 
         tags: ['simulated', 'planned'],
         is_tax_deductible: 0
       };
+      const user = JSON.parse(localStorage.getItem('safespend_user') || '{}');
       const res = await fetch('/api/transactions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': String(user.id || 1)
+        },
         body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error('Failed to insert planned purchase');
